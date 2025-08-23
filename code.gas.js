@@ -290,6 +290,57 @@ const copyFormFromUrl = (templateUrl, newTitle) => {
 };
 
 /**
+ * Google Formとスプレッドシートをリンクする（Formの送信先をSpreadsheetに設定）
+ * @param {string} formUrl - Google FormのURL
+ * @param {string} spreadsheetUrl - 送信先スプレッドシートのURL
+ */
+const linkFormToSpreadsheet = (formUrl, spreadsheetUrl) => {
+  // FormのURLからIDを抽出
+  const formMatch = formUrl.match(/\/forms\/d\/([a-zA-Z0-9-_]+)/);
+  if (!formMatch) {
+    throw new Error(`Invalid Google Form URL: ${formUrl}`);
+  }
+  const formId = formMatch[1];
+
+  // SpreadsheetのURLからIDを抽出
+  const spreadsheetMatch = spreadsheetUrl.match(
+    /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/
+  );
+  if (!spreadsheetMatch) {
+    throw new Error(`Invalid Spreadsheet URL: ${spreadsheetUrl}`);
+  }
+  const spreadsheetId = spreadsheetMatch[1];
+
+  try {
+    // @ts-ignore
+    const form = FormApp.openById(formId);
+    // @ts-ignore
+    const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+
+    // フォームの送信先をスプレッドシートに設定
+    // @ts-ignore
+    form.setDestination(
+      // @ts-ignore
+      FormApp.DestinationType.SPREADSHEET,
+      spreadsheet.getId()
+    );
+
+    logInfo("Form linked to spreadsheet successfully", {
+      formId,
+      spreadsheetId,
+    });
+  } catch (err) {
+    const e = /** @type {Error} */ (err);
+    logError("Failed to link form to spreadsheet", {
+      formId,
+      spreadsheetId,
+      error: e.message,
+    });
+    throw new Error(`FormとSpreadsheetのリンクに失敗しました: ${e.message}`);
+  }
+};
+
+/**
  * テンプレートから3つのファイルをコピーして見積もり履歴に追加
  * 締切日を使用してタイトルプレフィックスを生成
  * @param {string} deadlineDate - 締切日（YYYY-MM-DD形式）
@@ -317,6 +368,21 @@ const createEstimateFromTemplates = (deadlineDate) => {
     midUrl,
     formUrl,
     resultUrl,
+  });
+
+  // Google FormとSpreadsheetをリンク（FormのdestinationをSpreadsheetに設定）
+  linkFormToSpreadsheet(formUrl, midUrl);
+
+  logInfo("Form linked to spreadsheet", {
+    formUrl,
+    midUrl,
+  });
+
+  // Form_Responses テーブルにダミー行を追加
+  addFormResponsesDummyRow(midUrl);
+
+  logInfo("Added dummy row to Form_Responses table", {
+    midUrl,
   });
 
   // 見積もり履歴テーブルに行を追加
@@ -622,6 +688,147 @@ const getEstimateRequiredMembers = () => {
     tableId: meta.tableId,
   });
   return rows;
+};
+
+/** ===== 追加: Form_Responses テーブル書き込み =================== */
+const formResponsesTable = {
+  tableName: "Form_Responses",
+  headers: {
+    timestamp: "タイムスタンプ",
+    email: "メールアドレス",
+    premise: "E1. 見積もりの前提、質問",
+    estimate: "E1. 見積り値",
+  },
+};
+
+/**
+ * 指定されたスプレッドシートの Form_Responses テーブルに dummy 行を追加
+ * @param {string} spreadsheetUrl - 対象スプレッドシートのURL
+ */
+const addFormResponsesDummyRow = (spreadsheetUrl) => {
+  // SpreadsheetのURLからIDを抽出
+  const spreadsheetMatch = spreadsheetUrl.match(
+    /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/
+  );
+  if (!spreadsheetMatch) {
+    throw new Error(`Invalid spreadsheet URL: ${spreadsheetUrl}`);
+  }
+  const spreadsheetId = spreadsheetMatch[1];
+
+  logInfo("Adding dummy row to Form_Responses", { spreadsheetId });
+
+  try {
+    // 対象スプレッドシートのテーブル一覧を取得
+    // @ts-ignore
+    const resp = Sheets.Spreadsheets.get(spreadsheetId, {
+      fields: "sheets(properties(sheetId,title),tables(name,tableId,range))",
+    });
+
+    const sheets = resp.sheets || [];
+    let formResponsesMeta = null;
+
+    // Form_Responses テーブルを探す
+    for (const sh of sheets) {
+      const tables = sh.tables || [];
+      for (const tbl of tables) {
+        if (tbl.name === formResponsesTable.tableName) {
+          formResponsesMeta = {
+            tableId: tbl.tableId,
+            sheetId: sh.properties.sheetId,
+            sheetTitle: sh.properties.title,
+            range: tbl.range,
+          };
+          break;
+        }
+      }
+      if (formResponsesMeta) break;
+    }
+
+    if (!formResponsesMeta) {
+      throw new Error(
+        `Table not found: ${formResponsesTable.tableName} in spreadsheet ${spreadsheetId}`
+      );
+    }
+
+    logInfo("Found Form_Responses table", formResponsesMeta);
+
+    // テーブルの現在の範囲を取得してヘッダー行を確認
+    const a1 = gridRangeToA1(formResponsesMeta.range, formResponsesMeta.sheetTitle);
+    // @ts-ignore
+    const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
+    const values = vr.values || [];
+    
+    if (!values.length) {
+      throw new Error(`Table is empty: ${formResponsesTable.tableName}`);
+    }
+
+    const header = values[0].map((v) => String(v).trim());
+    logInfo("Form_Responses headers", { header });
+
+    // 新しい行をテーブルの先頭（ヘッダー直下）に挿入
+    const insertRowIndex = (formResponsesMeta.range.startRowIndex || 0) + 1; // ヘッダーの次
+
+    // @ts-ignore
+    Sheets.Spreadsheets.batchUpdate({
+      requests: [
+        {
+          insertDimension: {
+            range: {
+              sheetId: formResponsesMeta.sheetId,
+              dimension: "ROWS",
+              startIndex: insertRowIndex,
+              endIndex: insertRowIndex + 1,
+            },
+            inheritFromBefore: false,
+          },
+        },
+      ],
+    }, spreadsheetId);
+
+    // 新しい行にダミーデータを書き込み
+    const dummyRowData = header.map((headerCell, index) => {
+      const headerName = headerCell.trim();
+      if (headerName === formResponsesTable.headers.email) {
+        return "dummy";
+      }
+      // 他の列は空セル
+      return "";
+    });
+
+    const insertRange = gridRangeToA1(
+      {
+        startRowIndex: insertRowIndex,
+        endRowIndex: insertRowIndex + 1,
+        startColumnIndex: formResponsesMeta.range.startColumnIndex || 0,
+        endColumnIndex: formResponsesMeta.range.endColumnIndex || header.length,
+      },
+      formResponsesMeta.sheetTitle
+    );
+
+    // @ts-ignore
+    Sheets.Spreadsheets.Values.update(
+      {
+        values: [dummyRowData],
+      },
+      spreadsheetId,
+      insertRange,
+      {
+        valueInputOption: "RAW",
+      }
+    );
+
+    logInfo("Successfully added dummy row to Form_Responses", {
+      insertRange,
+      dummyRowData,
+    });
+
+  } catch (err) {
+    logError("Failed to add dummy row to Form_Responses", {
+      error: err.toString(),
+      spreadsheetUrl,
+    });
+    throw err;
+  }
 };
 
 /** ===== 追加: 見積もり履歴（テーブル） 書き込み =================== */
