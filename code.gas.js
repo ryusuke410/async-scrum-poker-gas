@@ -768,63 +768,45 @@ const addFormResponsesDummyRow = (spreadsheetUrl) => {
     const header = values[0].map((v) => String(v).trim());
     logInfo("Form_Responses headers", { header });
 
-    // 新しい行をテーブルの先頭（ヘッダー直下）に挿入
-    const insertRowIndex = (formResponsesMeta.range.startRowIndex || 0) + 1; // ヘッダーの次
+    // 力技: 普通のスプレッドシートとして行追加
+    // テーブルの次の行（ヘッダーの直下）にダミーデータを追加
+    const tableStartRow = (formResponsesMeta.range.startRowIndex || 0) + 1; // ヘッダーの次の行（0-based）
 
-    // @ts-ignore
-    Sheets.Spreadsheets.batchUpdate(
-      {
-        requests: [
-          {
-            insertDimension: {
-              range: {
-                sheetId: formResponsesMeta.sheetId,
-                dimension: "ROWS",
-                startIndex: insertRowIndex,
-                endIndex: insertRowIndex + 1,
-              },
-              inheritFromBefore: false,
-            },
-          },
-        ],
-      },
-      spreadsheetId
-    );
-
-    // 新しい行にダミーデータを書き込み
-    const dummyRowData = header.map((headerCell, index) => {
+    // ダミーデータを準備（タイムスタンプ=0, メールアドレス=dummy）
+    const dummyRowData = header.map((headerCell) => {
       const headerName = headerCell.trim();
-      if (headerName === formResponsesTable.headers.email) {
+      if (headerName === formResponsesTable.headers.timestamp) {
+        return "0";
+      } else if (headerName === formResponsesTable.headers.email) {
         return "dummy";
       }
-      // 他の列は空セル
-      return "";
+      return ""; // その他の列は空
     });
 
-    const insertRange = gridRangeToA1(
+    // A1形式の範囲を作成（ヘッダーの直下の行）
+    const dummyRowA1 = gridRangeToA1(
       {
-        startRowIndex: insertRowIndex,
-        endRowIndex: insertRowIndex + 1,
-        startColumnIndex: formResponsesMeta.range.startColumnIndex || 0,
-        endColumnIndex: formResponsesMeta.range.endColumnIndex || header.length,
+        sheetId: formResponsesMeta.sheetId,
+        startRowIndex: tableStartRow,
+        endRowIndex: tableStartRow + 1,
+        startColumnIndex: formResponsesMeta.range.startColumnIndex,
+        endColumnIndex: formResponsesMeta.range.endColumnIndex,
       },
       formResponsesMeta.sheetTitle
     );
 
     // @ts-ignore
     Sheets.Spreadsheets.Values.update(
-      {
-        values: [dummyRowData],
-      },
+      { values: [dummyRowData] },
       spreadsheetId,
-      insertRange,
-      {
-        valueInputOption: "RAW",
-      }
+      dummyRowA1,
+      { valueInputOption: "USER_ENTERED" }
     );
 
-    logInfo("Successfully added dummy row to Form_Responses", {
-      insertRange,
+    logInfo("Successfully added dummy row to Form_Responses table using Values.update", {
+      tableId: formResponsesMeta.tableId,
+      sheetId: formResponsesMeta.sheetId,
+      dummyRowA1,
       dummyRowData,
     });
   } catch (err) {
