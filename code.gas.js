@@ -775,9 +775,7 @@ const addFormResponsesDummyRow = (spreadsheetUrl) => {
     // ダミーデータを準備（タイムスタンプ=0, メールアドレス=dummy）
     const dummyRowData = header.map((headerCell) => {
       const headerName = headerCell.trim();
-      if (headerName === formResponsesTable.headers.timestamp) {
-        return "0";
-      } else if (headerName === formResponsesTable.headers.email) {
+      if (headerName === formResponsesTable.headers.email) {
         return "dummy";
       }
       return ""; // その他の列は空
@@ -803,12 +801,42 @@ const addFormResponsesDummyRow = (spreadsheetUrl) => {
       { valueInputOption: "USER_ENTERED" }
     );
 
-    logInfo("Successfully added dummy row to Form_Responses table using Values.update", {
-      tableId: formResponsesMeta.tableId,
-      sheetId: formResponsesMeta.sheetId,
-      dummyRowA1,
-      dummyRowData,
-    });
+    // テーブルの範囲を拡張してダミー行を含める（UpdateTableRequest使用）
+    const newEndRowIndex = (formResponsesMeta.range.startRowIndex || 0) + 2; // ヘッダー + ダミー行
+    // @ts-ignore
+    Sheets.Spreadsheets.batchUpdate(
+      {
+        requests: [
+          {
+            updateTable: {
+              table: {
+                tableId: formResponsesMeta.tableId,
+                range: {
+                  sheetId: formResponsesMeta.sheetId,
+                  startRowIndex: formResponsesMeta.range.startRowIndex,
+                  endRowIndex: newEndRowIndex,
+                  startColumnIndex: formResponsesMeta.range.startColumnIndex,
+                  endColumnIndex: formResponsesMeta.range.endColumnIndex,
+                },
+              },
+              fields: "range",
+            },
+          },
+        ],
+      },
+      spreadsheetId
+    );
+
+    logInfo(
+      "Successfully added dummy row to Form_Responses table using Values.update",
+      {
+        tableId: formResponsesMeta.tableId,
+        sheetId: formResponsesMeta.sheetId,
+        dummyRowA1,
+        dummyRowData,
+        newTableEndRow: newEndRowIndex,
+      }
+    );
   } catch (err) {
     logError("Failed to add dummy row to Form_Responses", {
       error: err.toString(),
