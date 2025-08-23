@@ -241,6 +241,105 @@ const getMidSpreadsheetLink = () => getEstimateTemplateLinks().midSpreadsheet;
 const getResultSpreadsheetLink = () =>
   getEstimateTemplateLinks().resultSpreadsheet;
 
+/** ===== テンプレートコピー機能 =================== */
+
+/**
+ * スプレッドシートをコピーして新しいタイトルを設定
+ * @param {string} templateUrl - コピー元のスプレッドシートURL
+ * @param {string} newTitle - 新しいスプレッドシートのタイトル
+ * @returns {string} - 新しいスプレッドシートのURL
+ */
+const copySpreadsheetFromUrl = (templateUrl, newTitle) => {
+  // URLからスプレッドシートIDを抽出
+  const match = templateUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (!match) {
+    throw new Error(`Invalid spreadsheet URL: ${templateUrl}`);
+  }
+  const templateId = match[1];
+
+  // @ts-ignore
+  const templateFile = DriveApp.getFileById(templateId);
+  // @ts-ignore
+  const copiedFile = templateFile.makeCopy(newTitle);
+  const copiedId = copiedFile.getId();
+
+  return `https://docs.google.com/spreadsheets/d/${copiedId}/edit`;
+};
+
+/**
+ * Google FormのURLからコピーを作成
+ * @param {string} templateUrl - コピー元のGoogle FormのURL
+ * @param {string} newTitle - 新しいGoogle Formのタイトル
+ * @returns {string} - 新しいGoogle FormのURL
+ */
+const copyFormFromUrl = (templateUrl, newTitle) => {
+  // URLからFormIDを抽出
+  const match = templateUrl.match(/\/forms\/d\/([a-zA-Z0-9-_]+)/);
+  if (!match) {
+    throw new Error(`Invalid form URL: ${templateUrl}`);
+  }
+  const templateId = match[1];
+
+  // @ts-ignore
+  const templateFile = DriveApp.getFileById(templateId);
+  // @ts-ignore
+  const copiedFile = templateFile.makeCopy(newTitle);
+  const copiedId = copiedFile.getId();
+
+  return `https://docs.google.com/forms/d/${copiedId}/edit`;
+};
+
+/**
+ * テンプレートから3つのファイルをコピーして見積もり履歴に追加
+ * @param {string} titlePrefix - タイトルのプレフィックス（例: "2025-08-19 SNFT async ポーカー"）
+ */
+const createEstimateFromTemplates = (titlePrefix) => {
+  logInfo("createEstimateFromTemplates start", { titlePrefix });
+
+  // テンプレートリンクを取得
+  const templates = getEstimateTemplateLinks();
+
+  // 今日の日付を取得（YYYY-MM-DD形式）
+  const today = new Date();
+  const dateStr = today.getFullYear() + "-" +
+    String(today.getMonth() + 1).padStart(2, "0") + "-" +
+    String(today.getDate()).padStart(2, "0");
+
+  // 各ファイルをコピー
+  const midUrl = copySpreadsheetFromUrl(templates.midSpreadsheet, titlePrefix);
+  const formUrl = copyFormFromUrl(templates.googleForm, titlePrefix);
+  const resultUrl = copySpreadsheetFromUrl(templates.resultSpreadsheet, `${titlePrefix}結果`);
+
+  logInfo("Files copied successfully", {
+    midUrl,
+    formUrl,
+    resultUrl
+  });
+
+  // 見積もり履歴テーブルに行を追加
+  addEstimateHistoryTopRow({
+    date: dateStr,
+    midText: titlePrefix,
+    midUrl: midUrl,
+    formText: titlePrefix,
+    formUrl: formUrl,
+    resultText: `${titlePrefix}結果`,
+    resultUrl: resultUrl,
+  });
+
+  logInfo("createEstimateFromTemplates completed", {
+    date: dateStr,
+    titlePrefix
+  });
+
+  return {
+    date: dateStr,
+    midUrl,
+    formUrl,
+    resultUrl
+  };
+};
+
 /** ===== サンプルテスト（削除/置換OK） ================= */
 // 成功する例
 tests.push({
@@ -999,3 +1098,13 @@ const testCore = () =>
  * 追加の個別バンドル例:
  * const testCore = testByNames(["A","B","C"]);
  */
+
+/** ===== エントリポイント（実行対象の公開） ============= */
+
+/**
+ * テンプレートから見積もりファイルセットを作成するエントリポイント
+ * 使用例: runCreateEstimate("2025-08-19 SNFT async ポーカー")
+ * @param {string} titlePrefix - 作成するファイルのタイトルプレフィックス
+ */
+const runCreateEstimate = (titlePrefix) =>
+  safeMain("runCreateEstimate", () => createEstimateFromTemplates(titlePrefix));
