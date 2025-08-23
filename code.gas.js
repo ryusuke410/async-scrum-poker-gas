@@ -287,6 +287,16 @@ tests.push({
   },
 });
 
+// 見積もり必要_課題リスト: 列存在（ローダが投げなければOK）
+tests.push({
+  name: "estimate_issue_list:columns",
+  failMessage: "ヘッダー「タイトル」「URL」が存在しません",
+  check: () => {
+    getEstimateIssueList();
+    return true;
+  },
+});
+
 /** ===== 追加: POグループメンバー ローダ =================== */
 const poGroupMembersTable = {
   tableName: "POグループメンバー",
@@ -625,6 +635,72 @@ const addEstimateHistoryTopRow = (row) => {
   logInfo("addEstimateHistoryTopRow done (links)", { rowA1 });
 };
 
+/** ===== 追加: 見積もり必要_課題リスト ローダ =================== */
+const estimateIssueListTable = {
+  tableName: "見積もり必要_課題リスト",
+  headers: {
+    title: "タイトル",
+    url: "URL",
+  },
+};
+
+/** @typedef {{ title: string, url: string }} EstimateIssueRow */
+/** @type {Array<EstimateIssueRow>|undefined} */
+let _estimateIssueListCache = undefined;
+
+/**
+ * 見積もり必要_課題リスト（テーブル）を読み込み、行配列を返す。
+ * @returns {Array<EstimateIssueRow>}
+ */
+const getEstimateIssueList = () => {
+  if (_estimateIssueListCache) return _estimateIssueListCache;
+  const meta = getTableMetaByName(estimateIssueListTable.tableName);
+  const a1 = gridRangeToA1(meta.range, meta.sheetTitle);
+  // @ts-ignore
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const spreadsheetId = ss.getId();
+  // @ts-ignore
+  const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
+  const values = vr.values || [];
+  if (!values.length) {
+    throw new Error("テーブルが空です: 見積もり必要_課題リスト");
+  }
+
+  const header = values[0].map((v) => String(v).trim());
+  const titleIdx = header.indexOf(estimateIssueListTable.headers.title);
+  const urlIdx = header.indexOf(estimateIssueListTable.headers.url);
+  if (titleIdx === -1 || urlIdx === -1) {
+    throw new Error(
+      `ヘッダー未検出: 必要な列名「${estimateIssueListTable.headers.title}」「${estimateIssueListTable.headers.url}」`
+    );
+  }
+
+  /** @type {Array<EstimateIssueRow>} */
+  const rows = [];
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i] || [];
+    const title = String(row[titleIdx] ?? "").trim();
+    const url = String(row[urlIdx] ?? "").trim();
+    
+    if (!title && !url) {
+      continue;
+    }
+    
+    rows.push({
+      title,
+      url,
+    });
+  }
+
+  _estimateIssueListCache = rows;
+  logInfo("Loaded table 見積もり必要_課題リスト", {
+    a1,
+    countRows: rows.length,
+    tableId: meta.tableId,
+  });
+  return rows;
+};
+
 /** ===== 追加: 見積もり必要_締切 ローダ =================== */
 const estimateDeadlineTable = {
   tableName: "見積もり必要_締切",
@@ -811,6 +887,9 @@ const testEstimateHistoryAddRow = () =>
 /** 見積もり必要_メンバー: テスト実行ヘルパ */
 const testEstimateRequiredMembersColumns = () => runTestByName("estimate_required_members:columns");
 
+/** 見積もり必要_課題リスト: テスト実行ヘルパ */
+const testEstimateIssueListColumns = () => runTestByName("estimate_issue_list:columns");
+
 /** コアテスト（書き込み等の副作用なし）*/
 const testCore = () =>
   runTestsByNames([
@@ -823,6 +902,7 @@ const testCore = () =>
     "estimate_deadline:columns",
     "estimate_deadline:length1",
     "estimate_required_members:columns",
+    "estimate_issue_list:columns",
   ]);
 
 /**
