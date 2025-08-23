@@ -68,8 +68,9 @@ const estimateTemplatesTable = {
 /** @typedef {any} GTable */
 /** @typedef {any} GGridRange */
 /** @typedef {{ tableId: string, sheetId: number, sheetTitle: string, range: GGridRange }} TableMeta */
+/** @typedef {{ googleForm: string, midSpreadsheet: string, resultSpreadsheet: string }} EstimateTemplateLinks */
 
-/** @type {Record<string,string>|undefined} */
+/** @type {EstimateTemplateLinks|undefined} */
 let _estimateTemplateCache = undefined;
 
 /** ====== テーブル検索ユーティリティ ====== */
@@ -142,11 +143,13 @@ const gridRangeToA1 = (gr, sheetTitle) => {
 };
 
 /**
- * 見積もり必要_テンプレート（テーブル）を読み込み、{ 名前: リンク } のマップを返す。
- * @returns {Record<string,string>}
+ * 見積もり必要_テンプレート（テーブル）を読み込み、固定キーのオブジェクトを返す。
+ * @returns {EstimateTemplateLinks}
  */
-const getEstimateTemplateMap = () => {
-  if (_estimateTemplateCache) return _estimateTemplateCache;
+const getEstimateTemplateLinks = () => {
+  if (_estimateTemplateCache) {
+    return _estimateTemplateCache;
+  }
   const meta = getTableMetaByName(estimateTemplatesTable.tableName);
   const a1 = gridRangeToA1(meta.range, meta.sheetTitle);
   // @ts-ignore
@@ -170,7 +173,7 @@ const getEstimateTemplateMap = () => {
   }
 
   /** @type {Record<string,string>} */
-  const map = {};
+  const tempMap = {};
   for (let i = 1; i < values.length; i++) {
     const row = values[i] || [];
     const name = String(row[nameIdx] ?? "").trim();
@@ -179,30 +182,64 @@ const getEstimateTemplateMap = () => {
       continue;
     }
     if (!link) {
+      logWarn("empty link in 見積もり必要_テンプレート", {
+        row: i + 1,
+        name,
+      });
       continue;
     }
-    if (Object.prototype.hasOwnProperty.call(map, name) && map[name] !== link) {
+    if (
+      Object.prototype.hasOwnProperty.call(tempMap, name) &&
+      tempMap[name] !== link
+    ) {
       logWarn("duplicate key in 見積もり必要_テンプレート", {
         row: i + 1,
         name,
-        prev: map[name],
+        prev: tempMap[name],
         next: link,
       });
     }
-    map[name] = link;
+    tempMap[name] = link;
   }
-  _estimateTemplateCache = map;
+
+  // 必要な3つのキーが存在することを確認
+  const googleForm = tempMap["Google Form"];
+  const midSpreadsheet = tempMap["中間スプシ"];
+  const resultSpreadsheet = tempMap["結果スプシ"];
+
+  if (!googleForm) {
+    throw new Error("必須項目「Google Form」のリンクが見つかりません");
+  }
+  if (!midSpreadsheet) {
+    throw new Error("必須項目「中間スプシ」のリンクが見つかりません");
+  }
+  if (!resultSpreadsheet) {
+    throw new Error("必須項目「結果スプシ」のリンクが見つかりません");
+  }
+
+  /** @type {EstimateTemplateLinks} */
+  const links = {
+    googleForm,
+    midSpreadsheet,
+    resultSpreadsheet,
+  };
+
+  _estimateTemplateCache = links;
   logInfo("Loaded table 見積もり必要_テンプレート", {
     a1,
-    count: Object.keys(map).length,
+    googleForm,
+    midSpreadsheet,
+    resultSpreadsheet,
     tableId: meta.tableId,
   });
-  return map;
+  return links;
 };
 
-/** @param {string} name @returns {string|undefined} */
-const getEstimateLinkByName = (name) =>
-  getEstimateTemplateMap()[String(name).trim()];
+/** 個別のリンクアクセサ */
+const getGoogleFormLink = () => getEstimateTemplateLinks().googleForm;
+const getMidSpreadsheetLink = () => getEstimateTemplateLinks().midSpreadsheet;
+const getResultSpreadsheetLink = () =>
+  getEstimateTemplateLinks().resultSpreadsheet;
 
 /** ===== サンプルテスト（削除/置換OK） ================= */
 // 成功する例
@@ -227,12 +264,38 @@ tests.push({
 // });
 
 // ここからテーブル読み込みのテストを追加
-// 観測用: "dummy" -> "dummy link" を期待
-// 必要に応じて実データ側にダミー行を用意してください。
+// テンプレートテーブル: 必要な3つのキーが存在し、リンクが空でないこと
 tests.push({
-  name: "template:dummy",
-  failMessage: 'dummy should map to "dummy link"',
-  check: () => getEstimateLinkByName("dummy") === "dummy link",
+  name: "template:required_keys",
+  failMessage:
+    "Google Form、中間スプシ、結果スプシのいずれかが欠けているか空です",
+  check: () => {
+    const templates = getEstimateTemplateLinks();
+    return !!(
+      templates.googleForm &&
+      templates.midSpreadsheet &&
+      templates.resultSpreadsheet
+    );
+  },
+});
+
+// テンプレートテーブル: 個別アクセサのテスト
+tests.push({
+  name: "template:google_form_link",
+  failMessage: "Google Formのリンクが取得できません",
+  check: () => getGoogleFormLink().length > 0,
+});
+
+tests.push({
+  name: "template:mid_spreadsheet_link",
+  failMessage: "中間スプシのリンクが取得できません",
+  check: () => getMidSpreadsheetLink().length > 0,
+});
+
+tests.push({
+  name: "template:result_spreadsheet_link",
+  failMessage: "結果スプシのリンクが取得できません",
+  check: () => getResultSpreadsheetLink().length > 0,
 });
 
 // POグループメンバー: 列存在（ローダが投げなければOK）
@@ -860,8 +923,23 @@ const testSampleSum = () => runTestByName("sample:sum");
 /** 複数まとめて実行する例 */
 const testSampleCore = () => runTestsByNames(["sample:true", "sample:sum"]);
 
-/** 見積もり必要_テンプレート: ダミー検証 */
-const testTemplateDummy = () => runTestByName("template:dummy");
+/** 見積もり必要_テンプレート: 固定キーのテスト */
+const testTemplateRequiredKeys = () => runTestByName("template:required_keys");
+const testTemplateGoogleFormLink = () =>
+  runTestByName("template:google_form_link");
+const testTemplateMidSpreadsheetLink = () =>
+  runTestByName("template:mid_spreadsheet_link");
+const testTemplateResultSpreadsheetLink = () =>
+  runTestByName("template:result_spreadsheet_link");
+
+/** 見積もり必要_テンプレート: まとめて */
+const testTemplateCore = () =>
+  runTestsByNames([
+    "template:required_keys",
+    "template:google_form_link",
+    "template:mid_spreadsheet_link",
+    "template:result_spreadsheet_link",
+  ]);
 
 /** POグループメンバー: 列存在・非空 検証 */
 const testPoMembersColumns = () => runTestByName("po_members:columns");
@@ -904,7 +982,10 @@ const testCore = () =>
   runTestsByNames([
     "sample:true",
     "sample:sum",
-    "template:dummy",
+    "template:required_keys",
+    "template:google_form_link",
+    "template:mid_spreadsheet_link",
+    "template:result_spreadsheet_link",
     "po_members:columns",
     "po_members:nonempty:displayNames",
     "po_members:nonempty:emails",
