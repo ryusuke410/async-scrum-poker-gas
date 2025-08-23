@@ -277,6 +277,16 @@ tests.push({
   },
 });
 
+// 見積もり必要_メンバー: 列存在（ローダが投げなければOK）
+tests.push({
+  name: "estimate_required_members:columns",
+  failMessage: "ヘッダー「表示名」「メールアドレス」「回答要否」が存在しません",
+  check: () => {
+    getEstimateRequiredMembers();
+    return true;
+  },
+});
+
 /** ===== 追加: POグループメンバー ローダ =================== */
 const poGroupMembersTable = {
   tableName: "POグループメンバー",
@@ -351,6 +361,87 @@ const getPoGroupMembers = () => {
 const getPoDisplayNames = () => getPoGroupMembers().displayNames;
 /** @returns {string[]} */
 const getPoEmails = () => getPoGroupMembers().emails;
+
+/** ===== 追加: 見積もり必要_メンバー ローダ =================== */
+const estimateRequiredMembersTable = {
+  tableName: "見積もり必要_メンバー",
+  headers: {
+    displayName: "表示名",
+    email: "メールアドレス",
+    responseRequired: "回答要否",
+  },
+};
+
+/** @typedef {{ displayName: string, email: string, responseRequired: "不要" | "必要" }} EstimateRequiredMemberRow */
+/** @type {Array<EstimateRequiredMemberRow>|undefined} */
+let _estimateRequiredMembersCache = undefined;
+
+/**
+ * 見積もり必要_メンバー（テーブル）を読み込み、行配列を返す。
+ * @returns {Array<EstimateRequiredMemberRow>}
+ */
+const getEstimateRequiredMembers = () => {
+  if (_estimateRequiredMembersCache) return _estimateRequiredMembersCache;
+  const meta = getTableMetaByName(estimateRequiredMembersTable.tableName);
+  const a1 = gridRangeToA1(meta.range, meta.sheetTitle);
+  // @ts-ignore
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const spreadsheetId = ss.getId();
+  // @ts-ignore
+  const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
+  const values = vr.values || [];
+  if (!values.length) {
+    throw new Error("テーブルが空です: 見積もり必要_メンバー");
+  }
+
+  const header = values[0].map((v) => String(v).trim());
+  const displayNameIdx = header.indexOf(estimateRequiredMembersTable.headers.displayName);
+  const emailIdx = header.indexOf(estimateRequiredMembersTable.headers.email);
+  const responseRequiredIdx = header.indexOf(estimateRequiredMembersTable.headers.responseRequired);
+  if (displayNameIdx === -1 || emailIdx === -1 || responseRequiredIdx === -1) {
+    throw new Error(
+      `ヘッダー未検出: 必要な列名「${estimateRequiredMembersTable.headers.displayName}」「${estimateRequiredMembersTable.headers.email}」「${estimateRequiredMembersTable.headers.responseRequired}」`
+    );
+  }
+
+  /** @type {Array<EstimateRequiredMemberRow>} */
+  const rows = [];
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i] || [];
+    const displayName = String(row[displayNameIdx] ?? "").trim();
+    const email = String(row[emailIdx] ?? "").trim();
+    const responseRequired = String(row[responseRequiredIdx] ?? "").trim();
+    
+    if (!displayName && !email) {
+      continue;
+    }
+    
+    // 回答要否の値チェック
+    if (responseRequired !== "不要" && responseRequired !== "必要") {
+      logWarn("invalid responseRequired value in 見積もり必要_メンバー", {
+        row: i + 1,
+        displayName,
+        email,
+        responseRequired,
+      });
+      continue;
+    }
+    
+    rows.push({
+      displayName,
+      email,
+      responseRequired: /** @type {"不要" | "必要"} */ (responseRequired),
+    });
+  }
+
+  _estimateRequiredMembersCache = rows;
+  logInfo("Loaded table 見積もり必要_メンバー", {
+    a1,
+    countRows: rows.length,
+    tableId: meta.tableId,
+  });
+  return rows;
+};
 
 /** ===== 追加: 見積もり履歴（テーブル） 書き込み =================== */
 const estimateHistoryTable = {
@@ -717,7 +808,10 @@ const testEstimateDeadlineCore = () =>
 const testEstimateHistoryAddRow = () =>
   runTestByName("estimate_history:addRow");
 
-/** コアテスト（変更なし）*/
+/** 見積もり必要_メンバー: テスト実行ヘルパ */
+const testEstimateRequiredMembersColumns = () => runTestByName("estimate_required_members:columns");
+
+/** コアテスト（書き込み等の副作用なし）*/
 const testCore = () =>
   runTestsByNames([
     "sample:true",
@@ -728,6 +822,7 @@ const testCore = () =>
     "po_members:nonempty:emails",
     "estimate_deadline:columns",
     "estimate_deadline:length1",
+    "estimate_required_members:columns",
   ]);
 
 /**
