@@ -753,11 +753,14 @@ const addFormResponsesDummyRow = (spreadsheetUrl) => {
     logInfo("Found Form_Responses table", formResponsesMeta);
 
     // テーブルの現在の範囲を取得してヘッダー行を確認
-    const a1 = gridRangeToA1(formResponsesMeta.range, formResponsesMeta.sheetTitle);
+    const a1 = gridRangeToA1(
+      formResponsesMeta.range,
+      formResponsesMeta.sheetTitle
+    );
     // @ts-ignore
     const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
     const values = vr.values || [];
-    
+
     if (!values.length) {
       throw new Error(`Table is empty: ${formResponsesTable.tableName}`);
     }
@@ -769,21 +772,24 @@ const addFormResponsesDummyRow = (spreadsheetUrl) => {
     const insertRowIndex = (formResponsesMeta.range.startRowIndex || 0) + 1; // ヘッダーの次
 
     // @ts-ignore
-    Sheets.Spreadsheets.batchUpdate({
-      requests: [
-        {
-          insertDimension: {
-            range: {
-              sheetId: formResponsesMeta.sheetId,
-              dimension: "ROWS",
-              startIndex: insertRowIndex,
-              endIndex: insertRowIndex + 1,
+    Sheets.Spreadsheets.batchUpdate(
+      {
+        requests: [
+          {
+            insertDimension: {
+              range: {
+                sheetId: formResponsesMeta.sheetId,
+                dimension: "ROWS",
+                startIndex: insertRowIndex,
+                endIndex: insertRowIndex + 1,
+              },
+              inheritFromBefore: false,
             },
-            inheritFromBefore: false,
           },
-        },
-      ],
-    }, spreadsheetId);
+        ],
+      },
+      spreadsheetId
+    );
 
     // 新しい行にダミーデータを書き込み
     const dummyRowData = header.map((headerCell, index) => {
@@ -821,7 +827,6 @@ const addFormResponsesDummyRow = (spreadsheetUrl) => {
       insertRange,
       dummyRowData,
     });
-
   } catch (err) {
     logError("Failed to add dummy row to Form_Responses", {
       error: err.toString(),
