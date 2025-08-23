@@ -291,34 +291,37 @@ const copyFormFromUrl = (templateUrl, newTitle) => {
 
 /**
  * テンプレートから3つのファイルをコピーして見積もり履歴に追加
- * @param {string} titlePrefix - タイトルのプレフィックス（例: "2025-08-19 SNFT async ポーカー"）
+ * 締切日を使用してタイトルプレフィックスを生成
+ * @param {string} deadlineDate - 締切日（YYYY-MM-DD形式）
  */
-const createEstimateFromTemplates = (titlePrefix) => {
-  logInfo("createEstimateFromTemplates start", { titlePrefix });
+const createEstimateFromTemplates = (deadlineDate) => {
+  logInfo("createEstimateFromTemplates start");
+
+  // タイトルプレフィックスを生成（締切日 + "async ポーカー"）
+  const titlePrefix = `${deadlineDate} async ポーカー`;
+
+  logInfo("Using deadline date for title", { deadlineDate, titlePrefix });
 
   // テンプレートリンクを取得
   const templates = getEstimateTemplateLinks();
 
-  // 今日の日付を取得（YYYY-MM-DD形式）
-  const today = new Date();
-  const dateStr = today.getFullYear() + "-" +
-    String(today.getMonth() + 1).padStart(2, "0") + "-" +
-    String(today.getDate()).padStart(2, "0");
-
   // 各ファイルをコピー
   const midUrl = copySpreadsheetFromUrl(templates.midSpreadsheet, titlePrefix);
   const formUrl = copyFormFromUrl(templates.googleForm, titlePrefix);
-  const resultUrl = copySpreadsheetFromUrl(templates.resultSpreadsheet, `${titlePrefix}結果`);
+  const resultUrl = copySpreadsheetFromUrl(
+    templates.resultSpreadsheet,
+    `${titlePrefix}結果`
+  );
 
   logInfo("Files copied successfully", {
     midUrl,
     formUrl,
-    resultUrl
+    resultUrl,
   });
 
   // 見積もり履歴テーブルに行を追加
   addEstimateHistoryTopRow({
-    date: dateStr,
+    date: deadlineDate,
     midText: titlePrefix,
     midUrl: midUrl,
     formText: titlePrefix,
@@ -328,15 +331,17 @@ const createEstimateFromTemplates = (titlePrefix) => {
   });
 
   logInfo("createEstimateFromTemplates completed", {
-    date: dateStr,
-    titlePrefix
+    date: deadlineDate,
+    titlePrefix,
+    deadlineDate,
   });
 
   return {
-    date: dateStr,
+    date: deadlineDate,
+    titlePrefix,
     midUrl,
     formUrl,
-    resultUrl
+    resultUrl,
   };
 };
 
@@ -1103,8 +1108,12 @@ const testCore = () =>
 
 /**
  * テンプレートから見積もりファイルセットを作成するエントリポイント
- * 使用例: runCreateEstimate("2025-08-19 SNFT async ポーカー")
- * @param {string} titlePrefix - 作成するファイルのタイトルプレフィックス
+ * 締切日を使用してタイトルプレフィックスを自動生成
+ * 使用例: runCreateEstimate()
  */
-const runCreateEstimate = (titlePrefix) =>
-  safeMain("runCreateEstimate", () => createEstimateFromTemplates(titlePrefix));
+const runCreateEstimate = () =>
+  safeMain("runCreateEstimate", () => {
+    const deadline = getEstimateDeadline();
+    const deadlineDate = deadline.dueDate;
+    createEstimateFromTemplates(deadlineDate);
+  });
