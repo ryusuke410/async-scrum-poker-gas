@@ -385,6 +385,13 @@ const createEstimateFromTemplates = (deadlineDate) => {
     midUrl,
   });
 
+  // 中間スプシの「メンバー」テーブルを「見積もり必要_メンバー」テーブルのデータで更新
+  insertRowToMembersTable(midUrl);
+
+  logInfo("Updated Members table with estimate required members data", {
+    midUrl,
+  });
+
   // 見積もり履歴テーブルに行を追加
   addEstimateHistoryTopRow({
     date: deadlineDate,
@@ -839,6 +846,228 @@ const addFormResponsesDummyRow = (spreadsheetUrl) => {
     );
   } catch (err) {
     logError("Failed to add dummy row to Form_Responses", {
+      error: err.toString(),
+      spreadsheetUrl,
+    });
+    throw err;
+  }
+};
+
+/** ===== 追加: 中間スプシの「メンバー」テーブル書き込み =================== */
+const membersTable = {
+  tableName: "メンバー",
+  headers: {
+    displayName: "表示名",
+    email: "メールアドレス",
+    responseRequired: "回答要否",
+    responseStatus: "回答状況",
+  },
+};
+
+/**
+ * 指定されたスプレッドシートの「メンバー」テーブルを元のスプシの「見積もり必要_メンバー」テーブルのデータで更新
+ * @param {string} spreadsheetUrl - 対象スプレッドシートのURL
+ */
+const insertRowToMembersTable = (spreadsheetUrl) => {
+  // SpreadsheetのURLからIDを抽出
+  const spreadsheetMatch = spreadsheetUrl.match(
+    /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/
+  );
+  if (!spreadsheetMatch) {
+    throw new Error(`Invalid spreadsheet URL: ${spreadsheetUrl}`);
+  }
+  const spreadsheetId = spreadsheetMatch[1];
+
+  logInfo("Updating Members table with data from estimate required members", { spreadsheetId });
+
+  // 元のスプシの「見積もり必要_メンバー」テーブルのデータを取得
+  const estimateMembers = getEstimateRequiredMembers();
+  logInfo("Retrieved estimate required members", { count: estimateMembers.length });
+
+  if (estimateMembers.length === 0) {
+    logWarn("No estimate required members found, skipping Members table update");
+    return;
+  }
+
+  try {
+    // 対象スプレッドシートのテーブル一覧を取得
+    // @ts-ignore
+    const resp = Sheets.Spreadsheets.get(spreadsheetId, {
+      fields: "sheets(properties(sheetId,title),tables(name,tableId,range))",
+    });
+
+    const sheets = resp.sheets || [];
+    let membersMeta = null;
+
+    // メンバーテーブルを探す
+    for (const sh of sheets) {
+      const tables = sh.tables || [];
+      for (const tbl of tables) {
+        if (tbl.name === membersTable.tableName) {
+          membersMeta = {
+            tableId: tbl.tableId,
+            sheetId: sh.properties.sheetId,
+            sheetTitle: sh.properties.title,
+            range: tbl.range,
+          };
+          break;
+        }
+      }
+      if (membersMeta) break;
+    }
+
+    if (!membersMeta) {
+      throw new Error(
+        `Table not found: ${membersTable.tableName} in spreadsheet ${spreadsheetId}`
+      );
+    }
+
+    logInfo("Found Members table", membersMeta);
+
+    // テーブルの現在の範囲を取得してヘッダー行を確認
+    const a1 = gridRangeToA1(membersMeta.range, membersMeta.sheetTitle);
+    // @ts-ignore
+    const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
+    const values = vr.values || [];
+
+    if (!values.length) {
+      throw new Error(`Table is empty: ${membersTable.tableName}`);
+    }
+
+    const header = values[0].map((v) => String(v).trim());
+    logInfo("Members table headers", { header });
+
+    // ヘッダー位置を取得
+    const displayNameIdx = header.indexOf(membersTable.headers.displayName);
+    const emailIdx = header.indexOf(membersTable.headers.email);
+    const responseRequiredIdx = header.indexOf(membersTable.headers.responseRequired);
+    const responseStatusIdx = header.indexOf(membersTable.headers.responseStatus);
+
+    if (displayNameIdx === -1 || emailIdx === -1 || responseRequiredIdx === -1 || responseStatusIdx === -1) {
+      throw new Error("Required headers not found in Members table");
+    }
+
+    // データ行の開始位置を計算
+    const dataStartRow = (membersMeta.range.startRowIndex || 0) + 1; // ヘッダーの次の行（0-based）
+    const currentDataRows = values.length - 1; // ヘッダーを除く既存データ行数
+    const requiredRows = estimateMembers.length; // 必要な行数
+
+    // 1. 必要な行数だけ挿入
+    if (requiredRows > 0) {
+      // @ts-ignore
+      Sheets.Spreadsheets.batchUpdate(
+        {
+          requests: [
+            {
+              insertDimension: {
+                range: {
+                  sheetId: membersMeta.sheetId,
+                  dimension: "ROWS",
+                  startIndex: dataStartRow, // 挿入位置（0-based）
+                  endIndex: dataStartRow + requiredRows, // 必要行数分
+                },
+                inheritFromBefore: false,
+              },
+            },
+          ],
+        },
+        spreadsheetId
+      );
+      logInfo("Inserted rows", { count: requiredRows, startRow: dataStartRow });
+    }
+
+    // 2. 不要な既存データ行を削除（新しく挿入した行より下）
+    if (currentDataRows > 0) {
+      const deleteStartRow = dataStartRow + requiredRows; // 新規挿入行の次から
+      const deleteEndRow = deleteStartRow + currentDataRows; // 既存データ行数分
+
+      // @ts-ignore
+      Sheets.Spreadsheets.batchUpdate(
+        {
+          requests: [
+            {
+              deleteDimension: {
+                range: {
+                  sheetId: membersMeta.sheetId,
+                  dimension: "ROWS",
+                  startIndex: deleteStartRow,
+                  endIndex: deleteEndRow,
+                },
+              },
+            },
+          ],
+        },
+        spreadsheetId
+      );
+      logInfo("Deleted old data rows", { startRow: deleteStartRow, endRow: deleteEndRow });
+    }
+
+    // 3. テーブルの範囲を更新（ヘッダー + 新しいデータ行数）
+    const newTableEndRow = (membersMeta.range.startRowIndex || 0) + 1 + requiredRows;
+    // @ts-ignore
+    Sheets.Spreadsheets.batchUpdate(
+      {
+        requests: [
+          {
+            updateTable: {
+              table: {
+                tableId: membersMeta.tableId,
+                range: {
+                  sheetId: membersMeta.sheetId,
+                  startRowIndex: membersMeta.range.startRowIndex,
+                  endRowIndex: newTableEndRow,
+                  startColumnIndex: membersMeta.range.startColumnIndex,
+                  endColumnIndex: membersMeta.range.endColumnIndex,
+                },
+              },
+              fields: "range",
+            },
+          },
+        ],
+      },
+      spreadsheetId
+    );
+
+    // 4. データを挿入（値貼り付け）
+    const columnCount = (membersMeta.range.endColumnIndex || 0) - (membersMeta.range.startColumnIndex || 0);
+    const dataRows = estimateMembers.map(member => {
+      const row = Array(columnCount).fill("");
+      row[displayNameIdx] = member.displayName;
+      row[emailIdx] = member.email;
+      row[responseRequiredIdx] = member.responseRequired;
+      row[responseStatusIdx] = ""; // 回答状況は空で初期化
+      return row;
+    });
+
+    // データ範囲のA1記法を作成
+    const dataA1 = gridRangeToA1(
+      {
+        sheetId: membersMeta.sheetId,
+        startRowIndex: dataStartRow,
+        endRowIndex: dataStartRow + requiredRows,
+        startColumnIndex: membersMeta.range.startColumnIndex,
+        endColumnIndex: membersMeta.range.endColumnIndex,
+      },
+      membersMeta.sheetTitle
+    );
+
+    // @ts-ignore
+    Sheets.Spreadsheets.Values.update(
+      { values: dataRows },
+      spreadsheetId,
+      dataA1,
+      { valueInputOption: "USER_ENTERED" }
+    );
+
+    logInfo("Successfully updated Members table", {
+      tableId: membersMeta.tableId,
+      sheetId: membersMeta.sheetId,
+      dataRowsInserted: requiredRows,
+      newTableEndRow,
+      dataA1,
+    });
+  } catch (err) {
+    logError("Failed to update Members table", {
       error: err.toString(),
       spreadsheetUrl,
     });
