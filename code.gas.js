@@ -405,9 +405,13 @@ const getEstimateRequiredMembers = () => {
   }
 
   const header = values[0].map((v) => String(v).trim());
-  const displayNameIdx = header.indexOf(estimateRequiredMembersTable.headers.displayName);
+  const displayNameIdx = header.indexOf(
+    estimateRequiredMembersTable.headers.displayName
+  );
   const emailIdx = header.indexOf(estimateRequiredMembersTable.headers.email);
-  const responseRequiredIdx = header.indexOf(estimateRequiredMembersTable.headers.responseRequired);
+  const responseRequiredIdx = header.indexOf(
+    estimateRequiredMembersTable.headers.responseRequired
+  );
   if (displayNameIdx === -1 || emailIdx === -1 || responseRequiredIdx === -1) {
     throw new Error(
       `ヘッダー未検出: 必要な列名「${estimateRequiredMembersTable.headers.displayName}」「${estimateRequiredMembersTable.headers.email}」「${estimateRequiredMembersTable.headers.responseRequired}」`
@@ -421,11 +425,11 @@ const getEstimateRequiredMembers = () => {
     const displayName = String(row[displayNameIdx] ?? "").trim();
     const email = String(row[emailIdx] ?? "").trim();
     const responseRequired = String(row[responseRequiredIdx] ?? "").trim();
-    
+
     if (!displayName && !email) {
       continue;
     }
-    
+
     // 回答要否の値チェック
     if (responseRequired !== "不要" && responseRequired !== "必要") {
       logWarn("invalid responseRequired value in 見積もり必要_メンバー", {
@@ -436,7 +440,7 @@ const getEstimateRequiredMembers = () => {
       });
       continue;
     }
-    
+
     rows.push({
       displayName,
       email,
@@ -474,10 +478,7 @@ const setCellLink = (cell, text, url) => {
   cell.setValue(text);
   cell.setRichTextValue(
     // @ts-ignore
-    SpreadsheetApp.newRichTextValue()
-      .setText(text)
-      .setLinkUrl(url)
-      .build()
+    SpreadsheetApp.newRichTextValue().setText(text).setLinkUrl(url).build()
   );
 };
 
@@ -580,9 +581,7 @@ const addEstimateHistoryTopRow = (row) => {
   // 3) セル自体にリンクを付与（HYPERLINK 式は使わない）
   const buildLinkCell = (text, url) => ({
     userEnteredValue: { stringValue: text },
-    textFormatRuns: [
-      { startIndex: 0, format: { link: { uri: url } } },
-    ],
+    textFormatRuns: [{ startIndex: 0, format: { link: { uri: url } } }],
   });
 
   const linkReq = {
@@ -596,7 +595,7 @@ const addEstimateHistoryTopRow = (row) => {
             startColumnIndex: startCol0 + idxMid,
             endColumnIndex: startCol0 + idxMid + 1,
           },
-          rows: [ { values: [ buildLinkCell(row.midText, row.midUrl) ] } ],
+          rows: [{ values: [buildLinkCell(row.midText, row.midUrl)] }],
           fields: "userEnteredValue,textFormatRuns",
         },
       },
@@ -609,7 +608,7 @@ const addEstimateHistoryTopRow = (row) => {
             startColumnIndex: startCol0 + idxForm,
             endColumnIndex: startCol0 + idxForm + 1,
           },
-          rows: [ { values: [ buildLinkCell(row.formText, row.formUrl) ] } ],
+          rows: [{ values: [buildLinkCell(row.formText, row.formUrl)] }],
           fields: "userEnteredValue,textFormatRuns",
         },
       },
@@ -622,7 +621,7 @@ const addEstimateHistoryTopRow = (row) => {
             startColumnIndex: startCol0 + idxResult,
             endColumnIndex: startCol0 + idxResult + 1,
           },
-          rows: [ { values: [ buildLinkCell(row.resultText, row.resultUrl) ] } ],
+          rows: [{ values: [buildLinkCell(row.resultText, row.resultUrl)] }],
           fields: "userEnteredValue,textFormatRuns",
         },
       },
@@ -630,7 +629,11 @@ const addEstimateHistoryTopRow = (row) => {
   };
 
   // @ts-ignore
-  Sheets.Spreadsheets.batchUpdate(linkReq, SpreadsheetApp.getActiveSpreadsheet().getId());
+  Sheets.Spreadsheets.batchUpdate(
+    linkReq,
+    // @ts-ignore
+    SpreadsheetApp.getActiveSpreadsheet().getId()
+  );
 
   logInfo("addEstimateHistoryTopRow done (links)", { rowA1 });
 };
@@ -681,11 +684,11 @@ const getEstimateIssueList = () => {
     const row = values[i] || [];
     const title = String(row[titleIdx] ?? "").trim();
     const url = String(row[urlIdx] ?? "").trim();
-    
+
     if (!title && !url) {
       continue;
     }
-    
+
     rows.push({
       title,
       url,
@@ -734,7 +737,9 @@ const getEstimateDeadlines = () => {
   const header = values[0].map((v) => String(v).trim());
   const dueIdx = header.indexOf(estimateDeadlineTable.headers.dueDate);
   if (dueIdx === -1) {
-    throw new Error(`ヘッダー未検出: 必要な列名「${estimateDeadlineTable.headers.dueDate}」`);
+    throw new Error(
+      `ヘッダー未検出: 必要な列名「${estimateDeadlineTable.headers.dueDate}」`
+    );
   }
 
   /** @type {Array<EstimateDeadlineRow>} */
@@ -875,8 +880,10 @@ const testPoMembersCore = () =>
 
 /** 見積もり履歴: 行追加テスト */
 // 見積もり必要_締切: テスト実行ヘルパ
-const testEstimateDeadlineColumns = () => runTestByName("estimate_deadline:columns");
-const testEstimateDeadlineLength1 = () => runTestByName("estimate_deadline:length1");
+const testEstimateDeadlineColumns = () =>
+  runTestByName("estimate_deadline:columns");
+const testEstimateDeadlineLength1 = () =>
+  runTestByName("estimate_deadline:length1");
 const testEstimateDeadlineCore = () =>
   runTestsByNames(["estimate_deadline:columns", "estimate_deadline:length1"]);
 
@@ -885,10 +892,12 @@ const testEstimateHistoryAddRow = () =>
   runTestByName("estimate_history:addRow");
 
 /** 見積もり必要_メンバー: テスト実行ヘルパ */
-const testEstimateRequiredMembersColumns = () => runTestByName("estimate_required_members:columns");
+const testEstimateRequiredMembersColumns = () =>
+  runTestByName("estimate_required_members:columns");
 
 /** 見積もり必要_課題リスト: テスト実行ヘルパ */
-const testEstimateIssueListColumns = () => runTestByName("estimate_issue_list:columns");
+const testEstimateIssueListColumns = () =>
+  runTestByName("estimate_issue_list:columns");
 
 /** コアテスト（書き込み等の副作用なし）*/
 const testCore = () =>
