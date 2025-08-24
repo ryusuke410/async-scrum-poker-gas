@@ -1364,11 +1364,11 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
       row[estimateTargetIdx] = issue.title; // セルにリンクは後で設定
       row[statusIdx] = `\
 =LET(
-  membersNames, メンバー[表示名],
-  membersResponseNecessities, メンバー[回答要否],
-  membersEmails, メンバー[メールアドレス],
-  estimatesEmails, Form_Responses[メールアドレス],
-  estimatesPoints, Form_Responses[E${index + 1}. 見積り値],
+  membersNames, ${membersTable.tableName}[${membersTable.headers.displayName}],
+  membersResponseNecessities, ${membersTable.tableName}[${membersTable.headers.responseRequired}],
+  membersEmails, ${membersTable.tableName}[${membersTable.headers.email}],
+  estimatesEmails, ${formResponsesTable.tableName}[${formResponsesTable.headers.email}],
+  estimatesPoints, ${formResponsesTable.tableName}[E${index + 1}. 見積り値],
   assigneeEmails, FILTER(membersEmails, membersResponseNecessities<>"不要"),
   allAssigneeResponded, COUNTUNIQUE(FILTER(assigneeEmails, assigneeEmails<>"")) = COUNTUNIQUE(FILTER(assigneeEmails, COUNTIF(estimatesEmails, assigneeEmails))),
   points, FILTER(estimatesPoints, estimatesPoints<>"skip"),
@@ -1391,16 +1391,16 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
   )
 )
 `;
-      row[averageIdx] = `=ROUND(AVERAGE(Form_Responses[E${
+      row[averageIdx] = `=ROUND(AVERAGE(${formResponsesTable.tableName}[E${
         index + 1
       }. 見積り値]))`;
       row[responseSummaryIdx] = `\
 =LET(
-  estimatesEmails, Form_Responses[メールアドレス],
-  estimatesPoints, Form_Responses[E${index + 1}. 見積り値],
-  estimatesComments, Form_Responses[E${index + 1}. 見積もりの前提、質問],
-  membersEmails, メンバー[メールアドレス],
-  membersNames,  メンバー[表示名],
+  estimatesEmails, ${formResponsesTable.tableName}[${formResponsesTable.headers.email}],
+  estimatesPoints, ${formResponsesTable.tableName}[E${index + 1}. 見積り値],
+  estimatesComments, ${formResponsesTable.tableName}[E${index + 1}. 見積もりの前提、質問],
+  membersEmails, ${membersTable.tableName}[${membersTable.headers.email}],
+  membersNames,  ${membersTable.tableName}[${membersTable.headers.displayName}],
   estimatesDisplayNames, MAP(estimatesEmails, LAMBDA(l, IFERROR(INDEX(membersNames, MATCH(l, membersEmails, 0)), l))),
   displayTexts, MAP(
     estimatesDisplayNames,
@@ -1419,14 +1419,14 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
   TEXTJOIN(CHAR(10) & CHAR(10), TRUE, displayTexts)
 )
 `;
-      row[minIdx] = `=MIN(Form_Responses[E${index + 1}. 見積り値])`;
-      row[maxIdx] = `=MAX(Form_Responses[E${index + 1}. 見積り値])`;
+      row[minIdx] = `=MIN(${formResponsesTable.tableName}[E${index + 1}. 見積り値])`;
+      row[maxIdx] = `=MAX(${formResponsesTable.tableName}[E${index + 1}. 見積り値])`;
       row[minByIdx] = `\
 =LET(
-  estimatesEmails, Form_Responses[メールアドレス],
-  estimatesPoints, Form_Responses[E${index + 1}. 見積り値],
-  membersEmails, メンバー[メールアドレス],
-  membersNames,  メンバー[表示名],
+  estimatesEmails, ${formResponsesTable.tableName}[${formResponsesTable.headers.email}],
+  estimatesPoints, ${formResponsesTable.tableName}[E${index + 1}. 見積り値],
+  membersEmails, ${membersTable.tableName}[${membersTable.headers.email}],
+  membersNames,  ${membersTable.tableName}[${membersTable.headers.displayName}],
   selectedEmails, FILTER(estimatesEmails, estimatesPoints = MIN(estimatesPoints)),
   selectedNames,  MAP(selectedEmails, LAMBDA(l, IFERROR(INDEX(membersNames, MATCH(l, membersEmails, 0)), l))),
   TEXTJOIN("、", TRUE, selectedNames)
@@ -1434,10 +1434,10 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
 `;
       row[maxByIdx] = `\
 =LET(
-  estimatesEmails, Form_Responses[メールアドレス],
-  estimatesPoints, Form_Responses[E${index + 1}. 見積り値],
-  membersEmails, メンバー[メールアドレス],
-  membersNames,  メンバー[表示名],
+  estimatesEmails, ${formResponsesTable.tableName}[${formResponsesTable.headers.email}],
+  estimatesPoints, ${formResponsesTable.tableName}[E${index + 1}. 見積り値],
+  membersEmails, ${membersTable.tableName}[${membersTable.headers.email}],
+  membersNames,  ${membersTable.tableName}[${membersTable.headers.displayName}],
   selectedEmails, FILTER(estimatesEmails, estimatesPoints = MAX(estimatesPoints)),
   selectedNames,  MAP(selectedEmails, LAMBDA(l, IFERROR(INDEX(membersNames, MATCH(l, membersEmails, 0)), l))),
   TEXTJOIN("、", TRUE, selectedNames)
