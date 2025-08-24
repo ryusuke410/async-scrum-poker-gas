@@ -1605,6 +1605,172 @@ const testCore = () =>
  * const testCore = testByNames(["A","B","C"]);
  */
 
+/** ===== Google Form セクション操作機能 =================== */
+
+/**
+ * Google FormのURLからFormオブジェクトを取得
+ * @param {string} formUrl - Google FormのURL
+ * @returns {any} - Formオブジェクト
+ */
+const getFormFromUrl = (formUrl) => {
+  const match = formUrl.match(/\/forms\/d\/([a-zA-Z0-9-_]+)/);
+  if (!match) {
+    throw new Error(`Invalid Google Form URL: ${formUrl}`);
+  }
+  const formId = match[1];
+  // @ts-ignore
+  return FormApp.openById(formId);
+};
+
+/**
+ * Formの1つ目のセクションのタイトルを設定
+ * @param {string} formUrl - Google FormのURL
+ * @param {string} title - 設定するタイトル
+ */
+const updateFormIntroSectionTitle = (formUrl, title) => {
+  const form = getFormFromUrl(formUrl);
+  const items = form.getItems();
+
+  // 1つ目のセクションを探す
+  for (const item of items) {
+    // @ts-ignore
+    if (item.getType() === FormApp.ItemType.SECTION_HEADER) {
+      const sectionItem = item.asSectionHeaderItem();
+      sectionItem.setTitle(title);
+      logInfo("Updated intro section title", { title });
+      return;
+    }
+  }
+
+  throw new Error("Intro section not found in form");
+};
+
+/**
+ * Formの2つ目のセクション（見積もり課題セクション）を複製
+ * @param {string} formUrl - Google FormのURL
+ * @param {number} targetCount - 必要な課題セクション数
+ */
+const duplicateEstimateSections = (formUrl, targetCount) => {
+  const form = getFormFromUrl(formUrl);
+  const items = form.getItems();
+
+  // セクションヘッダーを探して、2つ目のセクション（見積もり課題セクション）を特定
+  let sectionHeaders = [];
+  let sectionStartIndices = [];
+
+  for (let i = 0; i < items.length; i++) {
+    // @ts-ignore
+    if (items[i].getType() === FormApp.ItemType.SECTION_HEADER) {
+      sectionHeaders.push(items[i]);
+      sectionStartIndices.push(i);
+    }
+  }
+
+  if (sectionHeaders.length < 2) {
+    throw new Error(
+      "Form must have at least 2 sections (intro + estimate template)"
+    );
+  }
+
+  // 2つ目のセクション（インデックス1）が見積もり課題のテンプレート
+  const templateSectionIndex = sectionStartIndices[1];
+  const nextSectionIndex = sectionStartIndices[2] || items.length;
+
+  // テンプレートセクションに含まれるアイテムを取得
+  const templateItems = [];
+  for (let i = templateSectionIndex; i < nextSectionIndex; i++) {
+    templateItems.push(items[i]);
+  }
+
+  logInfo("Found template section", {
+    templateSectionIndex,
+    nextSectionIndex,
+    templateItemsCount: templateItems.length,
+  });
+
+  // 現在の課題セクション数を計算（2つ目以降のセクション数）
+  const currentEstimateSections = sectionHeaders.length - 1; // イントロを除く
+
+  if (currentEstimateSections >= targetCount) {
+    logInfo("Sufficient estimate sections already exist", {
+      current: currentEstimateSections,
+      target: targetCount,
+    });
+    return;
+  }
+
+  // 不足分を複製
+  const sectionsToAdd = targetCount - currentEstimateSections;
+  logInfo("Duplicating estimate sections", {
+    current: currentEstimateSections,
+    target: targetCount,
+    toAdd: sectionsToAdd,
+  });
+
+  for (let i = 0; i < sectionsToAdd; i++) {
+    // 各テンプレートアイテムを複製
+    for (const templateItem of templateItems) {
+      const itemType = templateItem.getType();
+
+      switch (itemType) {
+        // @ts-ignore
+        case FormApp.ItemType.SECTION_HEADER:
+          const newSection = form.addSectionHeaderItem();
+          const templateSection = templateItem.asSectionHeaderItem();
+          newSection.setTitle(templateSection.getTitle());
+          newSection.setHelpText(templateSection.getHelpText());
+          break;
+
+        // @ts-ignore
+        case FormApp.ItemType.TEXT:
+          const newTextItem = form.addTextItem();
+          const templateTextItem = templateItem.asTextItem();
+          newTextItem.setTitle(templateTextItem.getTitle());
+          newTextItem.setHelpText(templateTextItem.getHelpText());
+          newTextItem.setRequired(templateTextItem.isRequired());
+          break;
+
+        // @ts-ignore
+        case FormApp.ItemType.PARAGRAPH_TEXT:
+          const newParagraphItem = form.addParagraphTextItem();
+          const templateParagraphItem = templateItem.asParagraphTextItem();
+          newParagraphItem.setTitle(templateParagraphItem.getTitle());
+          newParagraphItem.setHelpText(templateParagraphItem.getHelpText());
+          newParagraphItem.setRequired(templateParagraphItem.isRequired());
+          break;
+
+        // @ts-ignore
+        case FormApp.ItemType.MULTIPLE_CHOICE:
+          const newMultipleChoiceItem = form.addMultipleChoiceItem();
+          const templateMultipleChoiceItem =
+            templateItem.asMultipleChoiceItem();
+          newMultipleChoiceItem.setTitle(templateMultipleChoiceItem.getTitle());
+          newMultipleChoiceItem.setHelpText(
+            templateMultipleChoiceItem.getHelpText()
+          );
+          newMultipleChoiceItem.setRequired(
+            templateMultipleChoiceItem.isRequired()
+          );
+          newMultipleChoiceItem.setChoices(
+            templateMultipleChoiceItem.getChoices()
+          );
+          break;
+
+        // 他のアイテムタイプも必要に応じて追加
+        default:
+          logWarn("Unsupported item type in template section", {
+            itemType: itemType.toString(),
+          });
+          break;
+      }
+    }
+  }
+
+  logInfo("Successfully duplicated estimate sections", {
+    sectionsAdded: sectionsToAdd,
+  });
+};
+
 /** ===== エントリポイント（実行対象の公開） ============= */
 
 /**
@@ -1617,4 +1783,52 @@ const runCreateEstimate = () =>
     const deadline = getEstimateDeadline();
     const deadlineDate = deadline.dueDate;
     createEstimateFromTemplates(deadlineDate);
+  });
+
+/**
+ * デバッグ用: Google Formのテンプレートコピーと基本セットアップのみ実行
+ * 使用例: runDebugFormSetup()
+ */
+const runDebugFormSetup = () =>
+  safeMain("runDebugFormSetup", () => {
+    const deadline = getEstimateDeadline();
+    const deadlineDate = deadline.dueDate;
+    const titlePrefix = `${deadlineDate} async ポーカー`;
+
+    logInfo("Debug: Creating form from template", {
+      deadlineDate,
+      titlePrefix,
+    });
+
+    // テンプレートリンクを取得
+    const templates = getEstimateTemplateLinks();
+
+    // Google Formをコピー
+    const formUrl = copyFormFromUrl(templates.googleForm, titlePrefix);
+    logInfo("Debug: Form copied successfully", { formUrl });
+
+    // 1. イントロセクションのタイトルを設定
+    updateFormIntroSectionTitle(formUrl, titlePrefix);
+    logInfo("Debug: Updated intro section title", { title: titlePrefix });
+
+    // 2. 見積もり課題の数を取得
+    const issueList = getEstimateIssueList();
+    const issueCount = issueList.length;
+    logInfo("Debug: Retrieved issue list", { issueCount });
+
+    // 3. 見積もり課題セクションを複製
+    duplicateEstimateSections(formUrl, issueCount);
+    logInfo("Debug: Duplicated estimate sections", { targetCount: issueCount });
+
+    logInfo("Debug: Form setup completed", {
+      formUrl,
+      titlePrefix,
+      issueCount,
+    });
+
+    return {
+      formUrl,
+      titlePrefix,
+      issueCount,
+    };
   });
