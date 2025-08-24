@@ -378,6 +378,16 @@ const createEstimateFromTemplates = (deadlineDate) => {
     midUrl,
   });
 
+  // Google Formのタイトルとセクションをセットアップ
+  const issueList = getEstimateIssueList();
+  setupFormSections(formUrl, titlePrefix, issueList);
+
+  logInfo("Form sections setup completed", {
+    formUrl,
+    titlePrefix,
+    issueCount: issueList.length,
+  });
+
   // Form_Responses テーブルにダミー行を追加
   addFormResponsesDummyRow(midUrl);
 
