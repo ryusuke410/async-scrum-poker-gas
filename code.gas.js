@@ -631,7 +631,9 @@ let _estimateRequiredMembersCache = undefined;
  * @returns {Array<EstimateRequiredMemberRow>}
  */
 const getEstimateRequiredMembers = () => {
-  if (_estimateRequiredMembersCache) return _estimateRequiredMembersCache;
+  if (_estimateRequiredMembersCache) {
+    return _estimateRequiredMembersCache;
+  }
   const meta = getTableMetaByName(estimateRequiredMembersTable.tableName);
   const a1 = gridRangeToA1(meta.range, meta.sheetTitle);
   // @ts-ignore
@@ -1324,7 +1326,9 @@ let _estimateIssueListCache = undefined;
  * @returns {Array<EstimateIssueRow>}
  */
 const getEstimateIssueList = () => {
-  if (_estimateIssueListCache) return _estimateIssueListCache;
+  if (_estimateIssueListCache) {
+    return _estimateIssueListCache;
+  }
   const meta = getTableMetaByName(estimateIssueListTable.tableName);
   const a1 = gridRangeToA1(meta.range, meta.sheetTitle);
   // @ts-ignore
@@ -1389,7 +1393,9 @@ let _estimateDeadlineCache = undefined;
  * @returns {Array<EstimateDeadlineRow>}
  */
 const getEstimateDeadlines = () => {
-  if (_estimateDeadlineCache) return _estimateDeadlineCache;
+  if (_estimateDeadlineCache) {
+    return _estimateDeadlineCache;
+  }
   const meta = getTableMetaByName(estimateDeadlineTable.tableName);
   const a1 = gridRangeToA1(meta.range, meta.sheetTitle);
   // @ts-ignore
@@ -1629,20 +1635,7 @@ const getFormFromUrl = (formUrl) => {
  */
 const updateFormIntroSectionTitle = (formUrl, title) => {
   const form = getFormFromUrl(formUrl);
-  const items = form.getItems();
-
-  // 1つ目のセクションを探す
-  for (const item of items) {
-    // @ts-ignore
-    if (item.getType() === FormApp.ItemType.SECTION_HEADER) {
-      const sectionItem = item.asSectionHeaderItem();
-      sectionItem.setTitle(title);
-      logInfo("Updated intro section title", { title });
-      return;
-    }
-  }
-
-  throw new Error("Intro section not found in form");
+  form.setTitle(title);
 };
 
 /**
