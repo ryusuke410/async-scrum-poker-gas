@@ -1632,16 +1632,15 @@ const getFormFromUrl = (formUrl) => {
  * Formのタイトルと見積もり課題セクションを課題リストに基づいてセットアップ
  * @param {string} formUrl - Google FormのURL
  * @param {string} title - フォームのタイトル
+ * @param {Array<EstimateIssueRow>} issueList - 見積もり課題リスト
  */
-const setupFormSections = (formUrl, title) => {
+const setupFormSections = (formUrl, title, issueList) => {
   const form = getFormFromUrl(formUrl);
-  
+
   // 1. フォームタイトルを設定
   form.setTitle(title);
   logInfo("Updated form title", { title });
-  
-  // 2. 見積もり課題リストを取得
-  const issueList = getEstimateIssueList();
+
   const targetCount = issueList.length;
 
   let items = form.getItems();
@@ -1820,7 +1819,7 @@ const runDebugFormSetup = () =>
     logInfo("Debug: Retrieved issue list", { issueCount });
 
     // フォームのタイトルと見積もり課題セクションをセットアップ
-    setupFormSections(formUrl, titlePrefix);
+    setupFormSections(formUrl, titlePrefix, issueList);
     logInfo("Debug: Setup form sections completed", {
       title: titlePrefix,
       targetCount: issueCount,
