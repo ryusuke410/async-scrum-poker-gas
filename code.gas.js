@@ -402,6 +402,13 @@ const createEstimateFromTemplates = (deadlineDate) => {
     midUrl,
   });
 
+  // 中間スプシの「結果まとめ」テーブルを見積もり課題リストのデータで更新
+  updateResultSummaryTable(midUrl);
+
+  logInfo("Updated ResultSummary table with estimate issue list data", {
+    midUrl,
+  });
+
   // 見積もり履歴テーブルに行を追加
   addEstimateHistoryTopRow({
     date: deadlineDate,
@@ -1130,6 +1137,384 @@ const updateMembersTable = (spreadsheetUrl) => {
     });
   } catch (err) {
     logError("Failed to update Members table", {
+      error: err.toString(),
+      spreadsheetUrl,
+    });
+    throw err;
+  }
+};
+
+/** ===== 追加: 中間スプシの「結果まとめ」テーブル書き込み =================== */
+const resultSummaryTable = {
+  tableName: "結果まとめ",
+  headers: {
+    id: "ID",
+    estimateTarget: "見積もり対象",
+    status: "ステータス",
+    average: "average",
+    responseSummary: "回答まとめ",
+    min: "min",
+    max: "max",
+    minBy: "min by",
+    maxBy: "max by",
+  },
+};
+
+/**
+ * 指定されたスプレッドシートの「結果まとめ」テーブルを見積もり課題リストのデータで更新
+ * @param {string} spreadsheetUrl - 対象スプレッドシートのURL
+ */
+const updateResultSummaryTable = (spreadsheetUrl) => {
+  // SpreadsheetのURLからIDを抽出
+  const spreadsheetMatch = spreadsheetUrl.match(
+    /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/
+  );
+  if (!spreadsheetMatch) {
+    throw new Error(`Invalid spreadsheet URL: ${spreadsheetUrl}`);
+  }
+  const spreadsheetId = spreadsheetMatch[1];
+
+  logInfo("Updating ResultSummary table with data from estimate issue list", {
+    spreadsheetId,
+  });
+
+  // 見積もり課題リストを取得
+  const issueList = getEstimateIssueList();
+  logInfo("Retrieved estimate issue list", {
+    count: issueList.length,
+  });
+
+  if (issueList.length === 0) {
+    logWarn("No estimate issues found, skipping ResultSummary table update");
+    return;
+  }
+
+  try {
+    // 対象スプレッドシートのテーブル一覧を取得
+    // @ts-ignore
+    const resp = Sheets.Spreadsheets.get(spreadsheetId, {
+      fields: "sheets(properties(sheetId,title),tables(name,tableId,range))",
+    });
+
+    const sheets = resp.sheets || [];
+    let resultSummaryMeta = null;
+
+    // 結果まとめテーブルを探す
+    for (const sh of sheets) {
+      const tables = sh.tables || [];
+      for (const tbl of tables) {
+        if (tbl.name === resultSummaryTable.tableName) {
+          resultSummaryMeta = {
+            tableId: tbl.tableId,
+            sheetId: sh.properties.sheetId,
+            sheetTitle: sh.properties.title,
+            range: tbl.range,
+          };
+          break;
+        }
+      }
+      if (resultSummaryMeta) break;
+    }
+
+    if (!resultSummaryMeta) {
+      throw new Error(
+        `Table not found: ${resultSummaryTable.tableName} in spreadsheet ${spreadsheetId}`
+      );
+    }
+
+    logInfo("Found ResultSummary table", resultSummaryMeta);
+
+    // テーブルの現在の範囲を取得してヘッダー行を確認
+    const a1 = gridRangeToA1(
+      resultSummaryMeta.range,
+      resultSummaryMeta.sheetTitle
+    );
+    // @ts-ignore
+    const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
+    const values = vr.values || [];
+
+    if (!values.length) {
+      throw new Error(`Table is empty: ${resultSummaryTable.tableName}`);
+    }
+
+    const header = values[0].map((v) => String(v).trim());
+    logInfo("ResultSummary table headers", { header });
+
+    // ヘッダー位置を取得
+    const idIdx = header.indexOf(resultSummaryTable.headers.id);
+    const estimateTargetIdx = header.indexOf(
+      resultSummaryTable.headers.estimateTarget
+    );
+    const statusIdx = header.indexOf(resultSummaryTable.headers.status);
+    const averageIdx = header.indexOf(resultSummaryTable.headers.average);
+    const responseSummaryIdx = header.indexOf(
+      resultSummaryTable.headers.responseSummary
+    );
+    const minIdx = header.indexOf(resultSummaryTable.headers.min);
+    const maxIdx = header.indexOf(resultSummaryTable.headers.max);
+    const minByIdx = header.indexOf(resultSummaryTable.headers.minBy);
+    const maxByIdx = header.indexOf(resultSummaryTable.headers.maxBy);
+
+    if (
+      idIdx === -1 ||
+      estimateTargetIdx === -1 ||
+      statusIdx === -1 ||
+      averageIdx === -1 ||
+      responseSummaryIdx === -1 ||
+      minIdx === -1 ||
+      maxIdx === -1 ||
+      minByIdx === -1 ||
+      maxByIdx === -1
+    ) {
+      throw new Error("Required headers not found in ResultSummary table");
+    }
+
+    // データ行の開始位置を計算
+    const dataStartRow = (resultSummaryMeta.range.startRowIndex || 0) + 1; // ヘッダーの次の行（0-based）
+    const currentDataRows = values.length - 1; // ヘッダーを除く既存データ行数
+    const requiredRows = issueList.length; // 必要な行数
+
+    // 1. 必要な行数だけ挿入
+    if (requiredRows > 0) {
+      // @ts-ignore
+      Sheets.Spreadsheets.batchUpdate(
+        {
+          requests: [
+            {
+              insertDimension: {
+                range: {
+                  sheetId: resultSummaryMeta.sheetId,
+                  dimension: "ROWS",
+                  startIndex: dataStartRow, // 挿入位置（0-based）
+                  endIndex: dataStartRow + requiredRows, // 必要行数分
+                },
+                inheritFromBefore: false,
+              },
+            },
+          ],
+        },
+        spreadsheetId
+      );
+      logInfo("Inserted rows", { count: requiredRows, startRow: dataStartRow });
+    }
+
+    // 2. 不要な既存データ行を削除（新しく挿入した行より下）
+    if (currentDataRows > 0) {
+      const deleteStartRow = dataStartRow + requiredRows; // 新規挿入行の次から
+      const deleteEndRow = deleteStartRow + currentDataRows; // 既存データ行数分
+
+      // @ts-ignore
+      Sheets.Spreadsheets.batchUpdate(
+        {
+          requests: [
+            {
+              deleteDimension: {
+                range: {
+                  sheetId: resultSummaryMeta.sheetId,
+                  dimension: "ROWS",
+                  startIndex: deleteStartRow,
+                  endIndex: deleteEndRow,
+                },
+              },
+            },
+          ],
+        },
+        spreadsheetId
+      );
+      logInfo("Deleted old data rows", {
+        startRow: deleteStartRow,
+        endRow: deleteEndRow,
+      });
+    }
+
+    // 3. テーブルの範囲を更新（ヘッダー + 新しいデータ行数）
+    const newTableEndRow =
+      (resultSummaryMeta.range.startRowIndex || 0) + 1 + requiredRows;
+    // @ts-ignore
+    Sheets.Spreadsheets.batchUpdate(
+      {
+        requests: [
+          {
+            updateTable: {
+              table: {
+                tableId: resultSummaryMeta.tableId,
+                range: {
+                  sheetId: resultSummaryMeta.sheetId,
+                  startRowIndex: resultSummaryMeta.range.startRowIndex,
+                  endRowIndex: newTableEndRow,
+                  startColumnIndex: resultSummaryMeta.range.startColumnIndex,
+                  endColumnIndex: resultSummaryMeta.range.endColumnIndex,
+                },
+              },
+              fields: "range",
+            },
+          },
+        ],
+      },
+      spreadsheetId
+    );
+
+    // 4. データを挿入（値貼り付け）
+    const columnCount =
+      (resultSummaryMeta.range.endColumnIndex || 0) -
+      (resultSummaryMeta.range.startColumnIndex || 0);
+    const dataRows = issueList.map((issue, index) => {
+      const row = Array(columnCount).fill("");
+      row[idIdx] = `E${index + 1}`;
+      row[estimateTargetIdx] = issue.title; // セルにリンクは後で設定
+      row[statusIdx] = `\
+=LET(
+  membersNames, メンバー[表示名],
+  membersResponseNecessities, メンバー[回答要否],
+  membersEmails, メンバー[メールアドレス],
+  estimatesEmails, Form_Responses[メールアドレス],
+  estimatesPoints, Form_Responses[E${index + 1}. 見積り値],
+  assigneeEmails, FILTER(membersEmails, membersResponseNecessities<>"不要"),
+  allAssigneeResponded, COUNTUNIQUE(FILTER(assigneeEmails, assigneeEmails<>"")) = COUNTUNIQUE(FILTER(assigneeEmails, COUNTIF(estimatesEmails, assigneeEmails))),
+  points, FILTER(estimatesPoints, estimatesPoints<>"skip"),
+  IF(
+    allAssigneeResponded,
+    IF(
+      COUNTA(points)=0,
+      "全員 skip",
+      LET(
+        keys, {1;2;3;5;8;13;21;34;55;89},
+        pos,  MAP(points, LAMBDA(v, IFERROR(MATCH(v, keys, 0), 0))),
+        IF(
+          SUM(--(pos=0))>0,
+          "error",
+          IF(MAX(pos)-MIN(pos) <= 2, "確定", "violation")
+        )
+      )
+    ),
+    "見積もり中"
+  )
+)
+`;
+      row[averageIdx] = `=ROUND(AVERAGE(Form_Responses[E${
+        index + 1
+      }. 見積り値]))`;
+      row[responseSummaryIdx] = `\
+=LET(
+  estimatesEmails, Form_Responses[メールアドレス],
+  estimatesPoints, Form_Responses[E${index + 1}. 見積り値],
+  estimatesComments, Form_Responses[E${index + 1}. 見積もりの前提、質問],
+  membersEmails, メンバー[メールアドレス],
+  membersNames,  メンバー[表示名],
+  estimatesDisplayNames, MAP(estimatesEmails, LAMBDA(l, IFERROR(INDEX(membersNames, MATCH(l, membersEmails, 0)), l))),
+  displayTexts, MAP(
+    estimatesDisplayNames,
+    estimatesPoints,
+    estimatesComments,
+    LAMBDA(name, point, comment,
+      SUBSTITUTE(
+        SUBSTITUTE(
+          SUBSTITUTE("（%name%）%point%: %comment%", "%name%", name),
+          "%point%", IF(point = "skip", point, point & "P")
+        ),
+        "%comment%", comment
+      )
+    )
+  ),
+  TEXTJOIN(CHAR(10) & CHAR(10), TRUE, displayTexts)
+)
+`;
+      row[minIdx] = `=MIN(Form_Responses[E${index + 1}. 見積り値])`;
+      row[maxIdx] = `=MAX(Form_Responses[E${index + 1}. 見積り値])`;
+      row[minByIdx] = `\
+=LET(
+  estimatesEmails, Form_Responses[メールアドレス],
+  estimatesPoints, Form_Responses[E${index + 1}. 見積り値],
+  membersEmails, メンバー[メールアドレス],
+  membersNames,  メンバー[表示名],
+  selectedEmails, FILTER(estimatesEmails, estimatesPoints = MIN(estimatesPoints)),
+  selectedNames,  MAP(selectedEmails, LAMBDA(l, IFERROR(INDEX(membersNames, MATCH(l, membersEmails, 0)), l))),
+  TEXTJOIN("、", TRUE, selectedNames)
+)
+`;
+      row[maxByIdx] = `\
+=LET(
+  estimatesEmails, Form_Responses[メールアドレス],
+  estimatesPoints, Form_Responses[E${index + 1}. 見積り値],
+  membersEmails, メンバー[メールアドレス],
+  membersNames,  メンバー[表示名],
+  selectedEmails, FILTER(estimatesEmails, estimatesPoints = MAX(estimatesPoints)),
+  selectedNames,  MAP(selectedEmails, LAMBDA(l, IFERROR(INDEX(membersNames, MATCH(l, membersEmails, 0)), l))),
+  TEXTJOIN("、", TRUE, selectedNames)
+)
+`;
+
+      return row;
+    });
+
+    // データ範囲のA1記法を作成
+    const dataA1 = gridRangeToA1(
+      {
+        sheetId: resultSummaryMeta.sheetId,
+        startRowIndex: dataStartRow,
+        endRowIndex: dataStartRow + requiredRows,
+        startColumnIndex: resultSummaryMeta.range.startColumnIndex,
+        endColumnIndex: resultSummaryMeta.range.endColumnIndex,
+      },
+      resultSummaryMeta.sheetTitle
+    );
+
+    // @ts-ignore
+    Sheets.Spreadsheets.Values.update(
+      { values: dataRows },
+      spreadsheetId,
+      dataA1,
+      { valueInputOption: "USER_ENTERED" }
+    );
+
+    // 5. 見積もり対象列にリンクを設定
+    const linkRequests = issueList.map((issue, index) => {
+      const rowIndex = dataStartRow + index;
+      const colIndex =
+        resultSummaryMeta.range.startColumnIndex + estimateTargetIdx;
+
+      return {
+        updateCells: {
+          range: {
+            sheetId: resultSummaryMeta.sheetId,
+            startRowIndex: rowIndex,
+            endRowIndex: rowIndex + 1,
+            startColumnIndex: colIndex,
+            endColumnIndex: colIndex + 1,
+          },
+          rows: [
+            {
+              values: [
+                {
+                  userEnteredValue: { stringValue: issue.title },
+                  textFormatRuns: [
+                    {
+                      startIndex: 0,
+                      format: { link: { uri: issue.url } },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+          fields: "userEnteredValue,textFormatRuns",
+        },
+      };
+    });
+
+    // @ts-ignore
+    Sheets.Spreadsheets.batchUpdate({ requests: linkRequests }, spreadsheetId);
+
+    logInfo("Successfully updated ResultSummary table", {
+      tableId: resultSummaryMeta.tableId,
+      sheetId: resultSummaryMeta.sheetId,
+      dataRowsInserted: requiredRows,
+      newTableEndRow,
+      dataA1,
+      linksSet: linkRequests.length,
+    });
+  } catch (err) {
+    logError("Failed to update ResultSummary table", {
       error: err.toString(),
       spreadsheetUrl,
     });
