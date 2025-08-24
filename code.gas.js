@@ -1629,33 +1629,22 @@ const getFormFromUrl = (formUrl) => {
 };
 
 /**
- * Formのタイトルを設定
+ * Formのタイトルと見積もり課題セクションを課題リストに基づいてセットアップ
  * @param {string} formUrl - Google FormのURL
- * @param {string} title - 設定するタイトル
+ * @param {string} title - フォームのタイトル
  */
-const updateFormIntroSectionTitle = (formUrl, title) => {
+const setupFormSections = (formUrl, title) => {
   const form = getFormFromUrl(formUrl);
+  
+  // 1. フォームタイトルを設定
   form.setTitle(title);
   logInfo("Updated form title", { title });
-};
-
-/**
- * Formの見積もり課題セクションを必要数分複製
- * @param {string} formUrl - Google FormのURL
- * @param {number} targetCount - 必要な課題セクション数
- */
-const duplicateEstimateSections = (formUrl, targetCount) => {
-  const form = getFormFromUrl(formUrl);
-  let items = form.getItems();
-
-  // 見積もり課題リストを取得
+  
+  // 2. 見積もり課題リストを取得
   const issueList = getEstimateIssueList();
+  const targetCount = issueList.length;
 
-  if (issueList.length !== targetCount) {
-    throw new Error(
-      `Issue list count (${issueList.length}) does not match target count (${targetCount})`
-    );
-  }
+  let items = form.getItems();
 
   logInfo("Initial form structure analysis", {
     totalItems: items.length,
@@ -1663,7 +1652,7 @@ const duplicateEstimateSections = (formUrl, targetCount) => {
     issueListCount: issueList.length,
   });
 
-  // 1. PAGE_BREAKを探し、2つ目以降があれば削除
+  // 3. PAGE_BREAKを探し、2つ目以降があれば削除
   let pageBreakIndices = [];
   for (let i = 0; i < items.length; i++) {
     // @ts-ignore
@@ -1825,18 +1814,15 @@ const runDebugFormSetup = () =>
     const formUrl = copyFormFromUrl(templates.googleForm, titlePrefix);
     logInfo("Debug: Form copied successfully", { formUrl });
 
-    // 1. フォームのタイトルを設定
-    updateFormIntroSectionTitle(formUrl, titlePrefix);
-    logInfo("Debug: Updated form title", { title: titlePrefix });
-
-    // 2. 見積もり課題の数を取得
+    // 見積もり課題の数を取得
     const issueList = getEstimateIssueList();
     const issueCount = issueList.length;
     logInfo("Debug: Retrieved issue list", { issueCount });
 
-    // 3. 見積もり課題セクションを複製
-    duplicateEstimateSections(formUrl, issueCount);
-    logInfo("Debug: Created estimate section sets", {
+    // フォームのタイトルと見積もり課題セクションをセットアップ
+    setupFormSections(formUrl, titlePrefix);
+    logInfo("Debug: Setup form sections completed", {
+      title: titlePrefix,
       targetCount: issueCount,
     });
 
