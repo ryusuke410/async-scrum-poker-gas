@@ -804,6 +804,12 @@ const addFormResponsesDummyRow = (spreadsheetUrl) => {
       if (headerName === formResponsesTable.headers.email) {
         return "dummy";
       }
+      if (headerName.endsWith(". 見積もりの前提、質問")) {
+        return "dummy premise";
+      }
+      if (headerName.endsWith(". 見積り値")) {
+        return "skip";
+      }
       return ""; // その他の列は空
     });
 
@@ -1365,82 +1371,169 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
       row[statusIdx] = `\
 =LET(
   membersNames, ${membersTable.tableName}[${membersTable.headers.displayName}],
-  membersResponseNecessities, ${membersTable.tableName}[${membersTable.headers.responseRequired}],
+  membersResponseNecessities, ${membersTable.tableName}[${
+        membersTable.headers.responseRequired
+      }],
   membersEmails, ${membersTable.tableName}[${membersTable.headers.email}],
-  estimatesEmails, ${formResponsesTable.tableName}[${formResponsesTable.headers.email}],
+  estimatesEmails, ${formResponsesTable.tableName}[${
+        formResponsesTable.headers.email
+      }],
   estimatesPoints, ${formResponsesTable.tableName}[E${index + 1}. 見積り値],
-  assigneeEmails, FILTER(membersEmails, membersResponseNecessities<>"不要"),
-  allAssigneeResponded, COUNTUNIQUE(FILTER(assigneeEmails, assigneeEmails<>"")) = COUNTUNIQUE(FILTER(assigneeEmails, COUNTIF(estimatesEmails, assigneeEmails))),
-  points, FILTER(estimatesPoints, estimatesPoints<>"skip"),
+  assigneeCount, COUNTIF(membersResponseNecessities, "<>不要"),
+  respondedAssigneeCount, SUM(MAP(membersResponseNecessities, membersEmails, LAMBDA(n, e, IF(AND(n<>"不要", COUNTIF(estimatesEmails, e)), 1, 0)))),
+  respondedMemberCount, SUM(MAP(membersEmails, LAMBDA(e, IF(COUNTIF(estimatesEmails, e), 1, 0)))),
   IF(
-    allAssigneeResponded,
+    assigneeCount > respondedAssigneeCount,
+    "見積もり中",
     IF(
-      COUNTA(points)=0,
-      "全員 skip",
+      AND(assigneeCount = 0, respondedMemberCount = 0),
+      "必須回答者なし",
       LET(
-        keys, {1;2;3;5;8;13;21;34;55;89},
-        pos,  MAP(points, LAMBDA(v, IFERROR(MATCH(v, keys, 0), 0))),
+        respondedMemberEstimates, FILTER(estimatesPoints, COUNTIF(membersEmails, estimatesEmails)),
+        noSkipCount, COUNTIF(respondedMemberEstimates, "<>skip"),
         IF(
-          SUM(--(pos=0))>0,
-          "error",
-          IF(MAX(pos)-MIN(pos) <= 2, "確定", "violation")
+          noSkipCount = 0,
+          "全員 skip",
+          LET(
+            points, FILTER(respondedMemberEstimates, respondedMemberEstimates<>"skip"),
+            keys, {1;2;3;5;8;13;21;34;55;89},
+            pos,  MAP(points, LAMBDA(v, IFERROR(MATCH(v, keys, 0), 0))),
+            IF(
+              SUM(--(pos=0))>0,
+              "error",
+              IF(MAX(pos)-MIN(pos) <= 2, "確定", "violation")
+            )
+          )
         )
       )
-    ),
-    "見積もり中"
+    )
   )
 )
 `;
-      row[averageIdx] = `=ROUND(AVERAGE(${formResponsesTable.tableName}[E${
-        index + 1
-      }. 見積り値]))`;
-      row[responseSummaryIdx] = `\
+      row[averageIdx] = `\
 =LET(
-  estimatesEmails, ${formResponsesTable.tableName}[${formResponsesTable.headers.email}],
-  estimatesPoints, ${formResponsesTable.tableName}[E${index + 1}. 見積り値],
-  estimatesComments, ${formResponsesTable.tableName}[E${index + 1}. 見積もりの前提、質問],
   membersEmails, ${membersTable.tableName}[${membersTable.headers.email}],
-  membersNames,  ${membersTable.tableName}[${membersTable.headers.displayName}],
-  estimatesDisplayNames, MAP(estimatesEmails, LAMBDA(l, IFERROR(INDEX(membersNames, MATCH(l, membersEmails, 0)), l))),
-  displayTexts, MAP(
-    estimatesDisplayNames,
-    estimatesPoints,
-    estimatesComments,
-    LAMBDA(name, point, comment,
-      SUBSTITUTE(
-        SUBSTITUTE(
-          SUBSTITUTE("（%name%）%point%: %comment%", "%name%", name),
-          "%point%", IF(point = "skip", point, point & "P")
-        ),
-        "%comment%", comment
-      )
-    )
-  ),
-  TEXTJOIN(CHAR(10) & CHAR(10), TRUE, displayTexts)
+  estimatesEmails, ${formResponsesTable.tableName}[${
+        formResponsesTable.headers.email
+      }],
+  estimatesPoints, ${formResponsesTable.tableName}[E${index + 1}. 見積り値],
+  respondedNoSkipMemberCount, SUM(MAP(estimatesEmails, estimatesPoints, LAMBDA(email, point, IF(AND(point<>"skip", COUNTIF(membersEmails, email)), 1, 0)))),
+  IF(
+    respondedNoSkipMemberCount = 0,
+    "",
+    ROUND(AVERAGE(FILTER(estimatesPoints, COUNTIF(membersEmails, estimatesEmails), estimatesPoints<>"skip")))
+  )
 )
 `;
-      row[minIdx] = `=MIN(${formResponsesTable.tableName}[E${index + 1}. 見積り値])`;
-      row[maxIdx] = `=MAX(${formResponsesTable.tableName}[E${index + 1}. 見積り値])`;
-      row[minByIdx] = `\
+      row[responseSummaryIdx] = `\
 =LET(
-  estimatesEmails, ${formResponsesTable.tableName}[${formResponsesTable.headers.email}],
-  estimatesPoints, ${formResponsesTable.tableName}[E${index + 1}. 見積り値],
   membersEmails, ${membersTable.tableName}[${membersTable.headers.email}],
   membersNames,  ${membersTable.tableName}[${membersTable.headers.displayName}],
-  selectedEmails, FILTER(estimatesEmails, estimatesPoints = MIN(estimatesPoints)),
-  selectedNames,  MAP(selectedEmails, LAMBDA(l, IFERROR(INDEX(membersNames, MATCH(l, membersEmails, 0)), l))),
-  TEXTJOIN("、", TRUE, selectedNames)
+  estimatesEmails, ${formResponsesTable.tableName}[${
+        formResponsesTable.headers.email
+      }],
+  estimatesPoints, ${formResponsesTable.tableName}[E${index + 1}. 見積り値],
+  estimatesComments, ${formResponsesTable.tableName}[E${
+        index + 1
+      }. 見積もりの前提、質問],
+  estimatesDisplayNames, MAP(estimatesEmails, LAMBDA(l, IFERROR(INDEX(membersNames, MATCH(l, membersEmails, 0)), l))),
+  respondedMemberCount, SUM(MAP(estimatesEmails, LAMBDA(email, IF(COUNTIF(membersEmails, email), 1, 0)))),
+  IF(
+    respondedMemberCount = 0,
+    "",
+    LET(
+      displayTexts, FILTER(
+        MAP(
+          estimatesDisplayNames,
+          estimatesPoints,
+          estimatesComments,
+          LAMBDA(name, point, comment,
+            SUBSTITUTE(
+              SUBSTITUTE(
+                SUBSTITUTE("（%name%）%point%: %comment%", "%name%", name),
+                "%point%", IF(point = "skip", point, point & "P")
+              ),
+              "%comment%", comment
+            )
+          )
+        ),
+        estimatesEmails <> "dummy"
+      ),
+      TEXTJOIN(CHAR(10) & CHAR(10), TRUE, displayTexts)
+    )
+  )
+)
+`;
+      row[minIdx] = `\
+=LET(
+  membersEmails, ${membersTable.tableName}[${membersTable.headers.email}],
+  estimatesEmails, ${formResponsesTable.tableName}[${
+        formResponsesTable.headers.email
+      }],
+  estimatesPoints, ${formResponsesTable.tableName}[E${index + 1}. 見積り値],
+  respondedNoSkipMemberCount, SUM(MAP(estimatesEmails, estimatesPoints, LAMBDA(email, point, IF(AND(point<>"skip", COUNTIF(membersEmails, email)), 1, 0)))),
+  IF(
+    respondedNoSkipMemberCount = 0,
+    "",
+    MIN(FILTER(estimatesPoints, COUNTIF(membersEmails, estimatesEmails), estimatesPoints<>"skip"))
+  )
+)
+`;
+      row[maxIdx] = `\
+=LET(
+  membersEmails, ${membersTable.tableName}[${membersTable.headers.email}],
+  estimatesEmails, ${formResponsesTable.tableName}[${
+        formResponsesTable.headers.email
+      }],
+  estimatesPoints, ${formResponsesTable.tableName}[E${index + 1}. 見積り値],
+  respondedNoSkipMemberCount, SUM(MAP(estimatesEmails, estimatesPoints, LAMBDA(email, point, IF(AND(point<>"skip", COUNTIF(membersEmails, email)), 1, 0)))),
+  IF(
+    respondedNoSkipMemberCount = 0,
+    "",
+    MAX(FILTER(estimatesPoints, COUNTIF(membersEmails, estimatesEmails), estimatesPoints<>"skip"))
+  )
+)
+`;
+      row[minByIdx] = `\
+=LET(
+  membersEmails, ${membersTable.tableName}[${membersTable.headers.email}],
+  membersNames,  ${membersTable.tableName}[${membersTable.headers.displayName}],
+  estimatesEmails, ${formResponsesTable.tableName}[${
+        formResponsesTable.headers.email
+      }],
+  estimatesPoints, ${formResponsesTable.tableName}[E${index + 1}. 見積り値],
+  respondedNoSkipMemberCount, SUM(MAP(estimatesEmails, estimatesPoints, LAMBDA(email, point, IF(AND(point<>"skip", COUNTIF(membersEmails, email)), 1, 0)))),
+  IF(
+    respondedNoSkipMemberCount = 0,
+    "",
+    LET(
+      value, MIN(FILTER(estimatesPoints, COUNTIF(membersEmails, estimatesEmails), estimatesPoints<>"skip")),
+      nameOrEmptyList, MAP(membersNames, membersEmails, LAMBDA(n, e, IF(COUNTIF(FILTER(estimatesEmails, estimatesPoints = value), e), n, ""))),
+      names, FILTER(nameOrEmptyList, nameOrEmptyList <> ""),
+      TEXTJOIN("、", TRUE, names)
+    )
+  )
 )
 `;
       row[maxByIdx] = `\
 =LET(
-  estimatesEmails, ${formResponsesTable.tableName}[${formResponsesTable.headers.email}],
-  estimatesPoints, ${formResponsesTable.tableName}[E${index + 1}. 見積り値],
   membersEmails, ${membersTable.tableName}[${membersTable.headers.email}],
   membersNames,  ${membersTable.tableName}[${membersTable.headers.displayName}],
-  selectedEmails, FILTER(estimatesEmails, estimatesPoints = MAX(estimatesPoints)),
-  selectedNames,  MAP(selectedEmails, LAMBDA(l, IFERROR(INDEX(membersNames, MATCH(l, membersEmails, 0)), l))),
-  TEXTJOIN("、", TRUE, selectedNames)
+  estimatesEmails, ${formResponsesTable.tableName}[${
+        formResponsesTable.headers.email
+      }],
+  estimatesPoints, ${formResponsesTable.tableName}[E${index + 1}. 見積り値],
+  respondedNoSkipMemberCount, SUM(MAP(estimatesEmails, estimatesPoints, LAMBDA(email, point, IF(AND(point<>"skip", COUNTIF(membersEmails, email)), 1, 0)))),
+  IF(
+    respondedNoSkipMemberCount = 0,
+    "",
+    LET(
+      value, MAX(FILTER(estimatesPoints, COUNTIF(membersEmails, estimatesEmails), estimatesPoints<>"skip")),
+      nameOrEmptyList, MAP(membersNames, membersEmails, LAMBDA(n, e, IF(COUNTIF(FILTER(estimatesEmails, estimatesPoints = value), e), n, ""))),
+      names, FILTER(nameOrEmptyList, nameOrEmptyList <> ""),
+      TEXTJOIN("、", TRUE, names)
+    )
+  )
 )
 `;
 
@@ -2166,6 +2259,10 @@ const setupFormSections = (formUrl, title, issueList) => {
       issueUrl: issue.url,
     });
   }
+
+  // シートとの同期を待つ
+  // @ts-ignore
+  Utilities.sleep(2000);
 
   logInfo("Successfully updated all section titles with issue URLs", {
     totalSections: targetCount,
