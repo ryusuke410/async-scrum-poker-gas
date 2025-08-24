@@ -386,7 +386,7 @@ const createEstimateFromTemplates = (deadlineDate) => {
   });
 
   // 中間スプシの「メンバー」テーブルを「見積もり必要_メンバー」テーブルのデータで更新
-  insertRowToMembersTable(midUrl);
+  updateMembersTable(midUrl);
 
   logInfo("Updated Members table with estimate required members data", {
     midUrl,
@@ -868,7 +868,7 @@ const membersTable = {
  * 指定されたスプレッドシートの「メンバー」テーブルを元のスプシの「見積もり必要_メンバー」テーブルのデータで更新
  * @param {string} spreadsheetUrl - 対象スプレッドシートのURL
  */
-const insertRowToMembersTable = (spreadsheetUrl) => {
+const updateMembersTable = (spreadsheetUrl) => {
   // SpreadsheetのURLからIDを抽出
   const spreadsheetMatch = spreadsheetUrl.match(
     /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/
