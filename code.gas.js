@@ -1057,7 +1057,35 @@ const insertRowToMembersTable = (spreadsheetUrl) => {
       row[emailIdx] = member.email;
       row[responseRequiredIdx] = member.responseRequired;
       // 1行目（index === 0）の回答状況には式を、それ以外は空
-      row[responseStatusIdx] = index === 0 ? '="未回答"' : "";
+      row[responseStatusIdx] = (() => {
+        if (index !== 0) {
+          return "";
+        }
+        return `\
+=LET(
+  membersNames,  ${membersTable.tableName}[${membersTable.headers.displayName}],
+  membersResponseNecessities, ${membersTable.tableName}[${membersTable.headers.responseRequired}],
+  membersEmails, ${membersTable.tableName}[${membersTable.headers.email}],
+  estimatesEmails, ${formResponsesTable.tableName}[${formResponsesTable.headers.email}],
+  assigneeEmails, FILTER(membersEmails, membersResponseNecessities<>"不要"),
+  MAP(
+    membersEmails,
+    LAMBDA(
+      email,
+      IF(
+        ISERROR(MATCH(email, assigneeEmails, 0)),
+        "回答不要",
+        IF(
+          ISERROR(MATCH(email, estimatesEmails, 0)),
+          "未回答",
+          "回答済み"
+        )
+      )
+    )
+  )
+)
+`;
+      })();
       return row;
     });
 
