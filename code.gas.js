@@ -1629,139 +1629,136 @@ const getFormFromUrl = (formUrl) => {
 };
 
 /**
- * Formの1つ目のセクションのタイトルを設定
+ * Formのタイトルを設定
  * @param {string} formUrl - Google FormのURL
  * @param {string} title - 設定するタイトル
  */
 const updateFormIntroSectionTitle = (formUrl, title) => {
   const form = getFormFromUrl(formUrl);
   form.setTitle(title);
+  logInfo("Updated form title", { title });
 };
 
 /**
- * Formの2つ目のセクション（見積もり課題セクション）を複製
+ * Formの見積もり課題セクションを必要数分複製
  * @param {string} formUrl - Google FormのURL
  * @param {number} targetCount - 必要な課題セクション数
  */
 const duplicateEstimateSections = (formUrl, targetCount) => {
   const form = getFormFromUrl(formUrl);
-  const items = form.getItems();
+  let items = form.getItems();
 
-  // セクションヘッダーを探して、2つ目のセクション（見積もり課題セクション）を特定
-  let sectionHeaders = [];
-  let sectionStartIndices = [];
+  logInfo("Initial form structure analysis", {
+    totalItems: items.length,
+    targetCount,
+  });
 
+  // 1. PAGE_BREAKを探し、2つ目以降があれば削除
+  let pageBreakIndices = [];
   for (let i = 0; i < items.length; i++) {
     // @ts-ignore
-    if (items[i].getType() === FormApp.ItemType.SECTION_HEADER) {
-      sectionHeaders.push(items[i]);
-      sectionStartIndices.push(i);
+    if (items[i].getType() === FormApp.ItemType.PAGE_BREAK) {
+      pageBreakIndices.push(i);
     }
   }
 
-  if (sectionHeaders.length < 2) {
+  if (pageBreakIndices.length === 0) {
+    throw new Error("No PAGE_BREAK found in form");
+  }
+
+  // 2つ目以降のPAGE_BREAKとそれ以降のアイテムを削除
+  if (pageBreakIndices.length > 1) {
+    logInfo("Removing extra PAGE_BREAK items", {
+      extraPageBreaks: pageBreakIndices.length - 1,
+      firstPageBreakIndex: pageBreakIndices[0],
+      itemsToRemove: items.length - pageBreakIndices[1],
+    });
+
+    // 後ろから削除（インデックスがずれないように）
+    for (let i = items.length - 1; i >= pageBreakIndices[1]; i--) {
+      form.deleteItem(i);
+    }
+
+    // アイテムリストを再取得
+    items = form.getItems();
+  }
+
+  const firstPageBreakIndex = pageBreakIndices[0];
+
+  const expectedStructure = [
+    // @ts-ignore
+    FormApp.ItemType.PAGE_BREAK,
+    // @ts-ignore
+    FormApp.ItemType.PARAGRAPH_TEXT,
+    // @ts-ignore
+    FormApp.ItemType.LIST,
+  ];
+
+  // 2. PAGE_BREAK後の構造を検証
+  if (items.length < firstPageBreakIndex + expectedStructure.length) {
     throw new Error(
-      "Form must have at least 2 sections (intro + estimate template)"
+      `Expected at least ${expectedStructure.length} items after PAGE_BREAK, but found ${
+        items.length - firstPageBreakIndex - 1
+      }`
     );
   }
 
-  // 2つ目のセクション（インデックス1）が見積もり課題のテンプレート
-  const templateSectionIndex = sectionStartIndices[1];
-  const nextSectionIndex = sectionStartIndices[2] || items.length;
-
-  // テンプレートセクションに含まれるアイテムを取得
-  const templateItems = [];
-  for (let i = templateSectionIndex; i < nextSectionIndex; i++) {
-    templateItems.push(items[i]);
-  }
-
-  logInfo("Found template section", {
-    templateSectionIndex,
-    nextSectionIndex,
-    templateItemsCount: templateItems.length,
-  });
-
-  // 現在の課題セクション数を計算（2つ目以降のセクション数）
-  const currentEstimateSections = sectionHeaders.length - 1; // イントロを除く
-
-  if (currentEstimateSections >= targetCount) {
-    logInfo("Sufficient estimate sections already exist", {
-      current: currentEstimateSections,
-      target: targetCount,
-    });
-    return;
-  }
-
-  // 不足分を複製
-  const sectionsToAdd = targetCount - currentEstimateSections;
-  logInfo("Duplicating estimate sections", {
-    current: currentEstimateSections,
-    target: targetCount,
-    toAdd: sectionsToAdd,
-  });
-
-  for (let i = 0; i < sectionsToAdd; i++) {
-    // 各テンプレートアイテムを複製
-    for (const templateItem of templateItems) {
-      const itemType = templateItem.getType();
-
-      switch (itemType) {
-        // @ts-ignore
-        case FormApp.ItemType.SECTION_HEADER:
-          const newSection = form.addSectionHeaderItem();
-          const templateSection = templateItem.asSectionHeaderItem();
-          newSection.setTitle(templateSection.getTitle());
-          newSection.setHelpText(templateSection.getHelpText());
-          break;
-
-        // @ts-ignore
-        case FormApp.ItemType.TEXT:
-          const newTextItem = form.addTextItem();
-          const templateTextItem = templateItem.asTextItem();
-          newTextItem.setTitle(templateTextItem.getTitle());
-          newTextItem.setHelpText(templateTextItem.getHelpText());
-          newTextItem.setRequired(templateTextItem.isRequired());
-          break;
-
-        // @ts-ignore
-        case FormApp.ItemType.PARAGRAPH_TEXT:
-          const newParagraphItem = form.addParagraphTextItem();
-          const templateParagraphItem = templateItem.asParagraphTextItem();
-          newParagraphItem.setTitle(templateParagraphItem.getTitle());
-          newParagraphItem.setHelpText(templateParagraphItem.getHelpText());
-          newParagraphItem.setRequired(templateParagraphItem.isRequired());
-          break;
-
-        // @ts-ignore
-        case FormApp.ItemType.MULTIPLE_CHOICE:
-          const newMultipleChoiceItem = form.addMultipleChoiceItem();
-          const templateMultipleChoiceItem =
-            templateItem.asMultipleChoiceItem();
-          newMultipleChoiceItem.setTitle(templateMultipleChoiceItem.getTitle());
-          newMultipleChoiceItem.setHelpText(
-            templateMultipleChoiceItem.getHelpText()
-          );
-          newMultipleChoiceItem.setRequired(
-            templateMultipleChoiceItem.isRequired()
-          );
-          newMultipleChoiceItem.setChoices(
-            templateMultipleChoiceItem.getChoices()
-          );
-          break;
-
-        // 他のアイテムタイプも必要に応じて追加
-        default:
-          logWarn("Unsupported item type in template section", {
-            itemType: itemType.toString(),
-          });
-          break;
-      }
+  for (let i = 0; i < expectedStructure.length; i++) {
+    const actualType = items[firstPageBreakIndex + i].getType();
+    const expectedType = expectedStructure[i];
+    if (actualType !== expectedType) {
+      throw new Error(
+        `Invalid structure at index ${firstPageBreakIndex + i}: expected ${expectedType}, but found ${actualType}`
+      );
     }
   }
 
-  logInfo("Successfully duplicated estimate sections", {
-    sectionsAdded: sectionsToAdd,
+  const expectedTotalItems = firstPageBreakIndex + expectedStructure.length;
+  if (items.length !== expectedTotalItems) {
+    throw new Error(
+      `Expected exactly ${expectedTotalItems} items, but found ${items.length}`
+    );
+  }
+
+  logInfo("Template structure validated", {
+    firstPageBreakIndex,
+    templateItems: expectedStructure.length,
   });
+
+  // 3. テンプレートアイテムを取得（PAGE_BREAK, PARAGRAPH_TEXT, LIST）
+  const templateSectionHeaderLikeItem = items[firstPageBreakIndex];
+  const templatePremiseItem = items[firstPageBreakIndex + 1];
+  const templateEstimateItem = items[firstPageBreakIndex + 2];
+
+  // 4. 必要な数だけセットを複製（既に1セットあるので、targetCount - 1 回追加）
+  const setsToAdd = targetCount - 1;
+
+  logInfo("Adding estimate section sets", { setsToAdd });
+
+  for (let i = 0; i < setsToAdd; i++) {
+    templateSectionHeaderLikeItem.duplicate();
+    templatePremiseItem.duplicate();
+    templateEstimateItem.duplicate();
+  }
+
+  logInfo("Successfully duplicated estimate sections", {
+    setsAdded: setsToAdd,
+    totalSets: targetCount,
+  });
+
+  // アイテムリストを再取得
+  items = form.getItems();
+
+  for (let i = 0; i < targetCount; i++) {
+    const sectionStartIndex = firstPageBreakIndex + i * expectedStructure.length;
+    const sectionHeaderLikeItem = items[sectionStartIndex];
+    const premiseItem = items[sectionStartIndex + 1];
+    const estimateItem = items[sectionStartIndex + 2];
+
+    sectionHeaderLikeItem.setTitle('foo');
+    premiseItem.setTitle(`E${i + 1}. 見積もりの前提、質問`);
+    estimateItem.setTitle(`E${i + 1}. 見積り値`);
+  }
 };
 
 /** ===== エントリポイント（実行対象の公開） ============= */
@@ -1800,9 +1797,9 @@ const runDebugFormSetup = () =>
     const formUrl = copyFormFromUrl(templates.googleForm, titlePrefix);
     logInfo("Debug: Form copied successfully", { formUrl });
 
-    // 1. イントロセクションのタイトルを設定
+    // 1. フォームのタイトルを設定
     updateFormIntroSectionTitle(formUrl, titlePrefix);
-    logInfo("Debug: Updated intro section title", { title: titlePrefix });
+    logInfo("Debug: Updated form title", { title: titlePrefix });
 
     // 2. 見積もり課題の数を取得
     const issueList = getEstimateIssueList();
@@ -1811,7 +1808,7 @@ const runDebugFormSetup = () =>
 
     // 3. 見積もり課題セクションを複製
     duplicateEstimateSections(formUrl, issueCount);
-    logInfo("Debug: Duplicated estimate sections", { targetCount: issueCount });
+    logInfo("Debug: Created estimate section sets", { targetCount: issueCount });
 
     logInfo("Debug: Form setup completed", {
       formUrl,
