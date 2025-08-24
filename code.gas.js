@@ -1648,9 +1648,19 @@ const duplicateEstimateSections = (formUrl, targetCount) => {
   const form = getFormFromUrl(formUrl);
   let items = form.getItems();
 
+  // 見積もり課題リストを取得
+  const issueList = getEstimateIssueList();
+
+  if (issueList.length !== targetCount) {
+    throw new Error(
+      `Issue list count (${issueList.length}) does not match target count (${targetCount})`
+    );
+  }
+
   logInfo("Initial form structure analysis", {
     totalItems: items.length,
     targetCount,
+    issueListCount: issueList.length,
   });
 
   // 1. PAGE_BREAKを探し、2つ目以降があれば削除
@@ -1697,7 +1707,9 @@ const duplicateEstimateSections = (formUrl, targetCount) => {
   // 2. PAGE_BREAK後の構造を検証
   if (items.length < firstPageBreakIndex + expectedStructure.length) {
     throw new Error(
-      `Expected at least ${expectedStructure.length} items after PAGE_BREAK, but found ${
+      `Expected at least ${
+        expectedStructure.length
+      } items after PAGE_BREAK, but found ${
         items.length - firstPageBreakIndex - 1
       }`
     );
@@ -1708,7 +1720,9 @@ const duplicateEstimateSections = (formUrl, targetCount) => {
     const expectedType = expectedStructure[i];
     if (actualType !== expectedType) {
       throw new Error(
-        `Invalid structure at index ${firstPageBreakIndex + i}: expected ${expectedType}, but found ${actualType}`
+        `Invalid structure at index ${
+          firstPageBreakIndex + i
+        }: expected ${expectedType}, but found ${actualType}`
       );
     }
   }
@@ -1750,15 +1764,29 @@ const duplicateEstimateSections = (formUrl, targetCount) => {
   items = form.getItems();
 
   for (let i = 0; i < targetCount; i++) {
-    const sectionStartIndex = firstPageBreakIndex + i * expectedStructure.length;
+    const sectionStartIndex =
+      firstPageBreakIndex + i * expectedStructure.length;
     const sectionHeaderLikeItem = items[sectionStartIndex];
     const premiseItem = items[sectionStartIndex + 1];
     const estimateItem = items[sectionStartIndex + 2];
 
-    sectionHeaderLikeItem.setTitle('foo');
+    // 課題リストから対応する課題情報を取得
+    const issue = issueList[i];
+
+    sectionHeaderLikeItem.setTitle(issue.url);
     premiseItem.setTitle(`E${i + 1}. 見積もりの前提、質問`);
     estimateItem.setTitle(`E${i + 1}. 見積り値`);
+
+    logInfo(`Updated section ${i + 1} titles`, {
+      sectionIndex: i + 1,
+      issueTitle: issue.title,
+      issueUrl: issue.url,
+    });
   }
+
+  logInfo("Successfully updated all section titles with issue URLs", {
+    totalSections: targetCount,
+  });
 };
 
 /** ===== エントリポイント（実行対象の公開） ============= */
@@ -1808,7 +1836,9 @@ const runDebugFormSetup = () =>
 
     // 3. 見積もり課題セクションを複製
     duplicateEstimateSections(formUrl, issueCount);
-    logInfo("Debug: Created estimate section sets", { targetCount: issueCount });
+    logInfo("Debug: Created estimate section sets", {
+      targetCount: issueCount,
+    });
 
     logInfo("Debug: Form setup completed", {
       formUrl,
