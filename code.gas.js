@@ -878,14 +878,20 @@ const insertRowToMembersTable = (spreadsheetUrl) => {
   }
   const spreadsheetId = spreadsheetMatch[1];
 
-  logInfo("Updating Members table with data from estimate required members", { spreadsheetId });
+  logInfo("Updating Members table with data from estimate required members", {
+    spreadsheetId,
+  });
 
   // 元のスプシの「見積もり必要_メンバー」テーブルのデータを取得
   const estimateMembers = getEstimateRequiredMembers();
-  logInfo("Retrieved estimate required members", { count: estimateMembers.length });
+  logInfo("Retrieved estimate required members", {
+    count: estimateMembers.length,
+  });
 
   if (estimateMembers.length === 0) {
-    logWarn("No estimate required members found, skipping Members table update");
+    logWarn(
+      "No estimate required members found, skipping Members table update"
+    );
     return;
   }
 
@@ -940,10 +946,19 @@ const insertRowToMembersTable = (spreadsheetUrl) => {
     // ヘッダー位置を取得
     const displayNameIdx = header.indexOf(membersTable.headers.displayName);
     const emailIdx = header.indexOf(membersTable.headers.email);
-    const responseRequiredIdx = header.indexOf(membersTable.headers.responseRequired);
-    const responseStatusIdx = header.indexOf(membersTable.headers.responseStatus);
+    const responseRequiredIdx = header.indexOf(
+      membersTable.headers.responseRequired
+    );
+    const responseStatusIdx = header.indexOf(
+      membersTable.headers.responseStatus
+    );
 
-    if (displayNameIdx === -1 || emailIdx === -1 || responseRequiredIdx === -1 || responseStatusIdx === -1) {
+    if (
+      displayNameIdx === -1 ||
+      emailIdx === -1 ||
+      responseRequiredIdx === -1 ||
+      responseStatusIdx === -1
+    ) {
       throw new Error("Required headers not found in Members table");
     }
 
@@ -999,11 +1014,15 @@ const insertRowToMembersTable = (spreadsheetUrl) => {
         },
         spreadsheetId
       );
-      logInfo("Deleted old data rows", { startRow: deleteStartRow, endRow: deleteEndRow });
+      logInfo("Deleted old data rows", {
+        startRow: deleteStartRow,
+        endRow: deleteEndRow,
+      });
     }
 
     // 3. テーブルの範囲を更新（ヘッダー + 新しいデータ行数）
-    const newTableEndRow = (membersMeta.range.startRowIndex || 0) + 1 + requiredRows;
+    const newTableEndRow =
+      (membersMeta.range.startRowIndex || 0) + 1 + requiredRows;
     // @ts-ignore
     Sheets.Spreadsheets.batchUpdate(
       {
@@ -1029,13 +1048,16 @@ const insertRowToMembersTable = (spreadsheetUrl) => {
     );
 
     // 4. データを挿入（値貼り付け）
-    const columnCount = (membersMeta.range.endColumnIndex || 0) - (membersMeta.range.startColumnIndex || 0);
-    const dataRows = estimateMembers.map(member => {
+    const columnCount =
+      (membersMeta.range.endColumnIndex || 0) -
+      (membersMeta.range.startColumnIndex || 0);
+    const dataRows = estimateMembers.map((member, index) => {
       const row = Array(columnCount).fill("");
       row[displayNameIdx] = member.displayName;
       row[emailIdx] = member.email;
       row[responseRequiredIdx] = member.responseRequired;
-      row[responseStatusIdx] = ""; // 回答状況は空で初期化
+      // 1行目（index === 0）の回答状況には式を、それ以外は空
+      row[responseStatusIdx] = index === 0 ? '="未回答"' : "";
       return row;
     });
 
