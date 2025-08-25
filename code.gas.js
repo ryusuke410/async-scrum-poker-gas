@@ -2272,6 +2272,18 @@ const setupFormSections = (formUrl, title, issueList) => {
 /** ===== エントリポイント（実行対象の公開） ============= */
 
 /**
+ * スプレッドシートが開かれたときに実行される関数
+ * カスタムメニューを追加する
+ */
+const onOpen = () => {
+  // @ts-ignore
+  const ui = SpreadsheetApp.getUi();
+  ui.createMenu('拡張コマンド')
+    .addItem('新規 async 見積もり発行', 'runCreateEstimate')
+    .addToUi();
+};
+
+/**
  * テンプレートから見積もりファイルセットを作成するエントリポイント
  * 締切日を使用してタイトルプレフィックスを自動生成
  * 使用例: runCreateEstimate()
