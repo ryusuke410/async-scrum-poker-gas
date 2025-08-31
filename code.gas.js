@@ -63,6 +63,9 @@ const safeMain = (name, thunk) => {
 /** @typedef {{ name: string, failMessage: string, check: () => boolean }} TestCase */
 /** @typedef {{ name: string, ok: boolean, message: string, ms: number }} TestResult */
 
+/** ===== テーブル型定義 ================================= */
+/** @typedef {{ tableId: string, sheetId: number, sheetTitle: string, range: GoogleAppsScript.Sheets.Schema.GridRange | undefined }} TableMeta */
+
 /** ===== テストレジストリ =============================== */
 /** @type {Array<TestCase>} */
 const tests = [];
@@ -143,11 +146,12 @@ const getTableMetaByName = (tableName) => {
 
 /**
  * GridRange -> A1 変換
- * @param {GoogleAppsScript.Sheets.} gr
+ * @param {GoogleAppsScript.Sheets.Schema.GridRange | undefined} gr
  * @param {string} sheetTitle
  */
 const gridRangeToA1 = (gr, sheetTitle) => {
-  const toColA1 = (zero) => {
+  if (!gr) throw new Error("GridRange is undefined");
+  const toColA1 = /** @param {number} zero */ (zero) => {
     let n = Number(zero) + 1; // 1-based
     let s = "";
     while (n > 0) {
@@ -182,7 +186,7 @@ const getEstimateTemplateLinks = () => {
   }
   const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
   const values = vr.values || [];
-  if (!values.length) {
+  if (!values.length || !values[0]) {
     throw new Error("テーブルが空です");
   }
 
@@ -611,7 +615,7 @@ const getPoGroupMembers = () => {
   }
   const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
   const values = vr.values || [];
-  if (!values.length) {
+  if (!values.length || !values[0]) {
     throw new Error("テーブルが空です: POグループメンバー");
   }
 
@@ -689,7 +693,7 @@ const getEstimateRequiredMembers = () => {
   }
   const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
   const values = vr.values || [];
-  if (!values.length) {
+  if (!values.length || !values[0]) {
     throw new Error("テーブルが空です: 見積もり必要_メンバー");
   }
 
@@ -999,6 +1003,7 @@ const updateMembersTable = (spreadsheetUrl) => {
 
     // メンバーテーブルを探す
     for (const sh of sheets) {
+      if (!sh.properties) continue;
       const tables = sh.tables || [];
       for (const tbl of tables) {
         if (tbl.name === membersTable.tableName) {
@@ -1020,6 +1025,10 @@ const updateMembersTable = (spreadsheetUrl) => {
       );
     }
 
+    if (!membersMeta.range || !membersMeta.sheetTitle) {
+      throw new Error(`Invalid table metadata for ${membersTable.tableName}`);
+    }
+
     logInfo("Found Members table", membersMeta);
 
     // テーブルの現在の範囲を取得してヘッダー行を確認
@@ -1030,7 +1039,7 @@ const updateMembersTable = (spreadsheetUrl) => {
     const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
     const values = vr.values || [];
 
-    if (!values.length) {
+    if (!values.length || !values[0]) {
       throw new Error(`Table is empty: ${membersTable.tableName}`);
     }
 
@@ -1210,11 +1219,12 @@ const updateMembersTable = (spreadsheetUrl) => {
       dataA1,
     });
   } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
     logError("Failed to update Members table", {
-      error: err.toString(),
+      error: error.toString(),
       spreadsheetUrl,
     });
-    throw err;
+    throw error;
   }
 };
 
@@ -1243,7 +1253,7 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
   const spreadsheetMatch = spreadsheetUrl.match(
     /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/
   );
-  if (!spreadsheetMatch) {
+  if (!spreadsheetMatch || !spreadsheetMatch[1]) {
     throw new Error(`Invalid spreadsheet URL: ${spreadsheetUrl}`);
   }
   const spreadsheetId = spreadsheetMatch[1];
@@ -1278,6 +1288,7 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
 
     // 結果まとめテーブルを探す
     for (const sh of sheets) {
+      if (!sh.properties) continue;
       const tables = sh.tables || [];
       for (const tbl of tables) {
         if (tbl.name === resultSummaryTable.tableName) {
@@ -1301,6 +1312,10 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
       );
     }
 
+    if (!resultSummaryMeta.range || !resultSummaryMeta.sheetTitle) {
+      throw new Error(`Invalid table metadata for ${resultSummaryTable.tableName}`);
+    }
+
     logInfo("Found ResultSummary table", resultSummaryMeta);
 
     // テーブルの現在の範囲を取得してヘッダー行を確認
@@ -1311,7 +1326,7 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
     const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
     const values = vr.values || [];
 
-    if (!values.length) {
+    if (!values.length || !values[0]) {
       throw new Error(`Table is empty: ${resultSummaryTable.tableName}`);
     }
 
@@ -1643,8 +1658,11 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
     // 5. 見積もり対象列にリンクを設定
     const linkRequests = issueList.map((issue, index) => {
       const rowIndex = dataStartRow + index;
+      if (!resultSummaryMeta.range) {
+        throw new Error("ResultSummary table range is undefined");
+      }
       const colIndex =
-        resultSummaryMeta.range.startColumnIndex + estimateTargetIdx;
+        (resultSummaryMeta.range.startColumnIndex || 0) + estimateTargetIdx;
 
       return {
         updateCells: {
@@ -1689,11 +1707,12 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
       linksSet: linkRequests.length,
     });
   } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
     logError("Failed to update ResultSummary table", {
-      error: err.toString(),
+      error: error.toString(),
       spreadsheetUrl,
     });
-    throw err;
+    throw error;
   }
 };
 
@@ -1729,6 +1748,9 @@ const setCellLink = (cell, text, url) => {
 const addEstimateHistoryTopRow = (row) => {
   const meta = getTableMetaByName(estimateHistoryTable.tableName);
   const gr = meta.range; // 0-based, end* は exclusive
+  if (!gr) {
+    throw new Error(`Table range is undefined for ${estimateHistoryTable.tableName}`);
+  }
   const sheetId = meta.sheetId;
   const sheetTitle = meta.sheetTitle;
 
@@ -1755,8 +1777,8 @@ const addEstimateHistoryTopRow = (row) => {
   const headerVals = (Sheets.Spreadsheets.Values.get(
     SpreadsheetApp.getActiveSpreadsheet().getId(),
     headerA1
-  ).values || [[]])[0].map((v) => String(v).trim());
-  const idxByName = (name) => {
+  ).values || [[]])[0]?.map((v) => String(v).trim()) || [];
+  const idxByName = /** @param {string} name */ (name) => {
     const idx = headerVals.indexOf(name);
     if (idx === -1) {
       throw new Error(`ヘッダー未検出: ${name}`);
@@ -1821,7 +1843,7 @@ const addEstimateHistoryTopRow = (row) => {
   );
 
   // 3) セル自体にリンクを付与（HYPERLINK 式は使わない）
-  const buildLinkCell = (text, url) => ({
+  const buildLinkCell = /** @param {any} text @param {string} url */ (text, url) => ({
     userEnteredValue: { stringValue: text },
     textFormatRuns: [{ startIndex: 0, format: { link: { uri: url } } }],
   });
@@ -1911,7 +1933,7 @@ const getEstimateIssueList = () => {
   }
   const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
   const values = vr.values || [];
-  if (!values.length) {
+  if (!values.length || !values[0]) {
     throw new Error("テーブルが空です: 見積もり必要_課題リスト");
   }
 
@@ -1979,7 +2001,7 @@ const getEstimateDeadlines = () => {
   }
   const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
   const values = vr.values || [];
-  if (!values.length) {
+  if (!values.length || !values[0]) {
     throw new Error("テーブルが空です: 見積もり必要_締切");
   }
 
@@ -2095,10 +2117,16 @@ const runTestsCore = (input) => {
 /** ===== 便利関数 ======================================= */
 
 /** 個別テスト実行 */
+/**
+ * @param {string} name
+ */
 const runTestByName = (name) =>
   safeMain("runTestByName", () => runTestsCore({ names: [name] }));
 
 /** 指定名の複数テストを実行 */
+/**
+ * @param {string[]} names
+ */
 const runTestsByNames = (names) =>
   safeMain("runTestsByNames", () => runTestsCore({ names }));
 
