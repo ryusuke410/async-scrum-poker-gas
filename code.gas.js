@@ -418,44 +418,43 @@ const grantEditPermissionToPOGroup = (fileId, fileType) => {
   const poEmails = getPoEmails();
 
   if (!poEmails.length) {
-    logWarn(`PO group has no email addresses, skipping permission setup for ${fileType}`);
+    logWarn(
+      `PO group has no email addresses, skipping permission setup for ${fileType}`
+    );
     return;
   }
 
-  logInfo(`Granting edit permissions to PO group for ${fileType} (no notification)`, {
-    fileId,
-    emailCount: poEmails.length
-  });
-
-  try {
-    for (const email of poEmails) {
-      try {
-        const permission = {
-          type: 'user',
-          role: 'writer',
-          emailAddress: email
-        };
-
-        // sendNotificationEmails: false で通知を無効化
-        Drive.Permissions.create(permission, fileId, {
-          sendNotificationEmails: false
-        });
-
-        logInfo(`Edit permission granted to ${email} for ${fileType} (no notification)`, { fileId });
-      } catch (err) {
-        const e = err instanceof Error ? err : new Error(String(err));
-        logWarn(`Failed to grant permission to ${email} for ${fileType}`, {
-          fileId,
-          error: e.message
-        });
-      }
-    }
-  } catch (err) {
-    const e = err instanceof Error ? err : new Error(String(err));
-    logError(`Failed to grant permissions for ${fileType}`, {
+  logInfo(
+    `Granting edit permissions to PO group for ${fileType} (no notification)`,
+    {
       fileId,
-      error: e.message
-    });
+      emailCount: poEmails.length,
+    }
+  );
+
+  for (const email of poEmails) {
+    try {
+      const permission = {
+        type: "user",
+        role: "writer",
+        emailAddress: email,
+      };
+
+      Drive.Permissions.create(permission, fileId, {
+        sendNotificationEmails: false,
+      });
+
+      logInfo(
+        `Edit permission granted to ${email} for ${fileType} (no notification)`,
+        { fileId }
+      );
+    } catch (err) {
+      const e = err instanceof Error ? err : new Error(String(err));
+      logWarn(`Failed to grant permission to ${email} for ${fileType}`, {
+        fileId,
+        error: e.message,
+      });
+    }
   }
 };
 /**
@@ -566,7 +565,6 @@ const createEstimateFromTemplates = (deadlineDate) => {
     resultUrl: resultUrl,
   });
 
-  // POグループメンバーに編集権限を付与（通知なし）
   try {
     const midFileId = extractFileIdFromUrl(midUrl, "中間スプシ");
     const formFileId = extractFileIdFromUrl(formUrl, "Google Form");
