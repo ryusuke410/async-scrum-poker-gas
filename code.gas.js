@@ -586,6 +586,19 @@ const grantFormResponsePermissionToEstimateMembers = (formId) => {
  * @returns {string} ファイルID
  */
 const extractFileIdFromUrl = (url, fileType) => {
+  const fileId = extractFileIdFromUrlOrUndefined(url);
+  if (fileId === undefined) {
+    throw new Error(`Could not extract file ID from ${fileType} URL: ${url}`);
+  }
+  return fileId;
+};
+
+/**
+ * URLからファイルIDを抽出する（見つからない場合はundefinedを返す）
+ * @param {string} url - Google DriveファイルのURL
+ * @returns {string|undefined} ファイルID、見つからない場合はundefined
+ */
+const extractFileIdFromUrlOrUndefined = (url) => {
   // Spreadsheet用のパターン
   const spreadsheetMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
   if (spreadsheetMatch && spreadsheetMatch[1]) {
@@ -604,7 +617,7 @@ const extractFileIdFromUrl = (url, fileType) => {
     return driveMatch[1];
   }
 
-  throw new Error(`Could not extract file ID from ${fileType} URL: ${url}`);
+  return undefined;
 };
 
 /**
