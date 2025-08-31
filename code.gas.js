@@ -64,7 +64,7 @@ const safeMain = (name, thunk) => {
 /** @typedef {{ name: string, ok: boolean, message: string, ms: number }} TestResult */
 
 /** ===== テーブル型定義 ================================= */
-/** @typedef {{ tableId: string, sheetId: number, sheetTitle: string, range: GoogleAppsScript.Sheets.Schema.GridRange | undefined }} TableMeta */
+/** @typedef {{ tableId: string, sheetId: number, sheetTitle: string, range: RequiredToBeDefined<GoogleAppsScript.Sheets.Schema.GridRange> }} TableMeta */
 
 /** ===== テストレジストリ =============================== */
 /** @type {Array<TestCase>} */
@@ -97,6 +97,18 @@ const isSpreadsheetsCollection = (spreadsheets) => {
   );
 };
 
+/** @type {(range: GoogleAppsScript.Sheets.Schema.GridRange | undefined) => range is RequiredToBeDefined<GoogleAppsScript.Sheets.Schema.GridRange>} */
+const isGridRange = (range) => {
+  return (
+    range !== undefined &&
+    range.sheetId !== undefined &&
+    range.startRowIndex !== undefined &&
+    range.endRowIndex !== undefined &&
+    range.startColumnIndex !== undefined &&
+    range.endColumnIndex !== undefined
+  );
+};
+
 /**
  * スプレッドシート内の全テーブルを列挙し、name->meta の辞書を返す。
  * @returns {Record<string, TableMeta>}
@@ -106,7 +118,9 @@ const getTablesIndex = () => {
   const spreadsheetId = ss.getId();
 
   if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
-    throw new Error("Advanced Sheets API is not enabled. Please enable it in the Google Apps Script project.");
+    throw new Error(
+      "Advanced Sheets API is not enabled. Please enable it in the Google Apps Script project."
+    );
   }
 
   const resp = Sheets.Spreadsheets.get(spreadsheetId, {
@@ -116,16 +130,29 @@ const getTablesIndex = () => {
   const out = {};
   const sheets = resp.sheets || [];
   for (const sh of sheets) {
-    const props = sh.properties;
-    const sheetId = props && props.sheetId != undefined ? props.sheetId : -1;
-    const sheetTitle = props && props.title ? props.title : "";
     const tables = sh.tables || [];
     for (const t of tables) {
+      const tableId = t.tableId;
+      if (tableId === undefined) {
+        throw new Error("Table ID is undefined");
+      }
+      const sheetId = sh.properties?.sheetId;
+      if (sheetId === undefined) {
+        throw new Error("Sheet ID is undefined");
+      }
+      const sheetTitle = sh.properties?.title;
+      if (sheetTitle === undefined) {
+        throw new Error("Sheet title is undefined");
+      }
+      const range = t.range;
+      if (!isGridRange(range)) {
+        throw new Error("Table range is undefined");
+      }
       out[String(t.name)] = {
-        tableId: String(t.tableId),
+        tableId,
         sheetId,
         sheetTitle,
-        range: t.range,
+        range,
       };
     }
   }
@@ -140,7 +167,9 @@ const getTablesIndex = () => {
 const getTableMetaByName = (tableName) => {
   const idx = getTablesIndex();
   const meta = idx[tableName];
-  if (!meta) throw new Error(`table not found: ${tableName}`);
+  if (!meta) {
+    throw new Error(`table not found: ${tableName}`);
+  }
   return meta;
 };
 
@@ -150,7 +179,9 @@ const getTableMetaByName = (tableName) => {
  * @param {string} sheetTitle
  */
 const gridRangeToA1 = (gr, sheetTitle) => {
-  if (!gr) throw new Error("GridRange is undefined");
+  if (!isGridRange(gr)) {
+    throw new Error("GridRange or its properties are undefined");
+  }
   const toColA1 = /** @param {number} zero */ (zero) => {
     let n = Number(zero) + 1; // 1-based
     let s = "";
@@ -161,10 +192,10 @@ const gridRangeToA1 = (gr, sheetTitle) => {
     }
     return s;
   };
-  const sr = (gr.startRowIndex || 0) + 1; // inclusive (1-based)
-  const er = gr.endRowIndex || sr; // exclusive -> inclusive: as-is
-  const sc = toColA1(gr.startColumnIndex || 0); // inclusive
-  const ec = toColA1((gr.endColumnIndex || 1) - 1); // exclusive -> inclusive
+  const sr = gr.startRowIndex + 1; // inclusive (1-based)
+  const er = gr.endRowIndex + 1; // exclusive -> inclusive
+  const sc = toColA1(gr.startColumnIndex); // inclusive
+  const ec = toColA1(gr.endColumnIndex - 1); // exclusive -> inclusive
   return `${sheetTitle}!${sc}${sr}:${ec}${er}`;
 };
 
@@ -182,7 +213,9 @@ const getEstimateTemplateLinks = () => {
   const spreadsheetId = ss.getId();
 
   if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
-    throw new Error("Advanced Sheets API is not enabled. Please enable it in the Google Apps Script project.");
+    throw new Error(
+      "Advanced Sheets API is not enabled. Please enable it in the Google Apps Script project."
+    );
   }
   const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
   const values = vr.values || [];
@@ -285,7 +318,9 @@ const copySpreadsheetFromUrl = (templateUrl, newTitle) => {
   }
   const templateId = match[1];
   if (!templateId) {
-    throw new Error(`Could not extract spreadsheet ID from URL: ${templateUrl}`);
+    throw new Error(
+      `Could not extract spreadsheet ID from URL: ${templateUrl}`
+    );
   }
 
   const templateFile = DriveApp.getFileById(templateId);
@@ -344,7 +379,9 @@ const linkFormToSpreadsheet = (formUrl, spreadsheetUrl) => {
   }
   const spreadsheetId = spreadsheetMatch[1];
   if (!spreadsheetId) {
-    throw new Error(`Could not extract spreadsheet ID from URL: ${spreadsheetUrl}`);
+    throw new Error(
+      `Could not extract spreadsheet ID from URL: ${spreadsheetUrl}`
+    );
   }
 
   try {
@@ -775,11 +812,15 @@ const addFormResponsesDummyRow = (spreadsheetUrl) => {
   }
   const spreadsheetId = spreadsheetMatch[1];
   if (!spreadsheetId) {
-    throw new Error(`Could not extract spreadsheet ID from URL: ${spreadsheetUrl}`);
+    throw new Error(
+      `Could not extract spreadsheet ID from URL: ${spreadsheetUrl}`
+    );
   }
 
   if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
-    throw new Error("Advanced Sheets API is not enabled. Please enable it in the Google Apps Script project.");
+    throw new Error(
+      "Advanced Sheets API is not enabled. Please enable it in the Google Apps Script project."
+    );
   }
 
   logInfo("Adding dummy row to Form_Responses", { spreadsheetId });
@@ -791,6 +832,7 @@ const addFormResponsesDummyRow = (spreadsheetUrl) => {
     });
 
     const sheets = resp.sheets || [];
+    /** @type {TableMeta | undefined} */
     let formResponsesMeta = undefined;
 
     // Form_Responses テーブルを探す
@@ -811,7 +853,7 @@ const addFormResponsesDummyRow = (spreadsheetUrl) => {
             throw new Error("Sheet title is undefined");
           }
           const range = tbl.range;
-          if (range === undefined) {
+          if (!isGridRange(range)) {
             throw new Error("Table range is undefined");
           }
 
@@ -968,7 +1010,9 @@ const updateMembersTable = (spreadsheetUrl) => {
   }
   const spreadsheetId = spreadsheetMatch[1];
   if (!spreadsheetId) {
-    throw new Error(`Could not extract spreadsheet ID from URL: ${spreadsheetUrl}`);
+    throw new Error(
+      `Could not extract spreadsheet ID from URL: ${spreadsheetUrl}`
+    );
   }
 
   logInfo("Updating Members table with data from estimate required members", {
@@ -989,7 +1033,9 @@ const updateMembersTable = (spreadsheetUrl) => {
   }
 
   if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
-    throw new Error("Advanced Sheets API is not enabled. Please enable it in the Google Apps Script project.");
+    throw new Error(
+      "Advanced Sheets API is not enabled. Please enable it in the Google Apps Script project."
+    );
   }
 
   try {
@@ -999,24 +1045,43 @@ const updateMembersTable = (spreadsheetUrl) => {
     });
 
     const sheets = resp.sheets || [];
+    /** @type {TableMeta | undefined} */
     let membersMeta = undefined;
 
     // メンバーテーブルを探す
     for (const sh of sheets) {
-      if (!sh.properties) continue;
       const tables = sh.tables || [];
       for (const tbl of tables) {
         if (tbl.name === membersTable.tableName) {
+          const tableId = tbl.tableId;
+          if (tableId === undefined) {
+            throw new Error("Table ID is undefined");
+          }
+          const sheetId = sh.properties?.sheetId;
+          if (sheetId === undefined) {
+            throw new Error("Sheet ID is undefined");
+          }
+          const sheetTitle = sh.properties?.title;
+          if (sheetTitle === undefined) {
+            throw new Error("Sheet title is undefined");
+          }
+          const range = tbl.range;
+          if (!isGridRange(range)) {
+            throw new Error("Table range is undefined");
+          }
+
           membersMeta = {
-            tableId: tbl.tableId,
-            sheetId: sh.properties.sheetId,
-            sheetTitle: sh.properties.title,
-            range: tbl.range,
+            tableId,
+            sheetId,
+            sheetTitle,
+            range,
           };
           break;
         }
       }
-      if (membersMeta) break;
+      if (membersMeta) {
+        break;
+      }
     }
 
     if (!membersMeta) {
@@ -1274,7 +1339,9 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
   }
 
   if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
-    throw new Error("Advanced Sheets API is not enabled. Please enable it in the Google Apps Script project.");
+    throw new Error(
+      "Advanced Sheets API is not enabled. Please enable it in the Google Apps Script project."
+    );
   }
 
   try {
@@ -1284,19 +1351,35 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
     });
 
     const sheets = resp.sheets || [];
+    /** @type {TableMeta | undefined} */
     let resultSummaryMeta = undefined;
 
     // 結果まとめテーブルを探す
     for (const sh of sheets) {
-      if (!sh.properties) continue;
       const tables = sh.tables || [];
       for (const tbl of tables) {
         if (tbl.name === resultSummaryTable.tableName) {
+          const tableId = tbl.tableId;
+          if (tableId === undefined) {
+            throw new Error("Table ID is undefined");
+          }
+          const sheetId = sh.properties?.sheetId;
+          if (sheetId === undefined) {
+            throw new Error("Sheet ID is undefined");
+          }
+          const sheetTitle = sh.properties?.title;
+          if (sheetTitle === undefined) {
+            throw new Error("Sheet title is undefined");
+          }
+          const range = tbl.range;
+          if (!isGridRange(range)) {
+            throw new Error("Table range is undefined");
+          }
           resultSummaryMeta = {
-            tableId: tbl.tableId,
-            sheetId: sh.properties.sheetId,
-            sheetTitle: sh.properties.title,
-            range: tbl.range,
+            tableId,
+            sheetId,
+            sheetTitle,
+            range,
           };
           break;
         }
@@ -1313,7 +1396,9 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
     }
 
     if (!resultSummaryMeta.range || !resultSummaryMeta.sheetTitle) {
-      throw new Error(`Invalid table metadata for ${resultSummaryTable.tableName}`);
+      throw new Error(
+        `Invalid table metadata for ${resultSummaryTable.tableName}`
+      );
     }
 
     logInfo("Found ResultSummary table", resultSummaryMeta);
@@ -1749,7 +1834,9 @@ const addEstimateHistoryTopRow = (row) => {
   const meta = getTableMetaByName(estimateHistoryTable.tableName);
   const gr = meta.range; // 0-based, end* は exclusive
   if (!gr) {
-    throw new Error(`Table range is undefined for ${estimateHistoryTable.tableName}`);
+    throw new Error(
+      `Table range is undefined for ${estimateHistoryTable.tableName}`
+    );
   }
   const sheetId = meta.sheetId;
   const sheetTitle = meta.sheetTitle;
@@ -1774,10 +1861,11 @@ const addEstimateHistoryTopRow = (row) => {
   if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
     throw new Error("Sheets.Spreadsheets is not available");
   }
-  const headerVals = (Sheets.Spreadsheets.Values.get(
-    SpreadsheetApp.getActiveSpreadsheet().getId(),
-    headerA1
-  ).values || [[]])[0]?.map((v) => String(v).trim()) || [];
+  const headerVals =
+    (Sheets.Spreadsheets.Values.get(
+      SpreadsheetApp.getActiveSpreadsheet().getId(),
+      headerA1
+    ).values || [[]])[0]?.map((v) => String(v).trim()) || [];
   const idxByName = /** @param {string} name */ (name) => {
     const idx = headerVals.indexOf(name);
     if (idx === -1) {
@@ -1843,7 +1931,10 @@ const addEstimateHistoryTopRow = (row) => {
   );
 
   // 3) セル自体にリンクを付与（HYPERLINK 式は使わない）
-  const buildLinkCell = /** @param {any} text @param {string} url */ (text, url) => ({
+  const buildLinkCell = /** @param {any} text @param {string} url */ (
+    text,
+    url
+  ) => ({
     userEnteredValue: { stringValue: text },
     textFormatRuns: [{ startIndex: 0, format: { link: { uri: url } } }],
   });
@@ -2284,10 +2375,10 @@ const setupFormSections = (formUrl, title, issueList) => {
     });
 
     if (secondPageBreakIndex !== undefined) {
-    // 後ろから削除（インデックスがずれないように）
-    for (let i = items.length - 1; i >= secondPageBreakIndex; i--) {
-      form.deleteItem(i);
-    }
+      // 後ろから削除（インデックスがずれないように）
+      for (let i = items.length - 1; i >= secondPageBreakIndex; i--) {
+        form.deleteItem(i);
+      }
     }
 
     // アイテムリストを再取得
@@ -2399,8 +2490,8 @@ const setupFormSections = (formUrl, title, issueList) => {
  */
 const onOpen = () => {
   const ui = SpreadsheetApp.getUi();
-  ui.createMenu('拡張コマンド')
-    .addItem('新規 async 見積もり発行', 'runCreateEstimate')
+  ui.createMenu("拡張コマンド")
+    .addItem("新規 async 見積もり発行", "runCreateEstimate")
     .addToUi();
 };
 
