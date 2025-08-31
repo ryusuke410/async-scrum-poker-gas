@@ -604,6 +604,20 @@ const extractSpreadsheetIdFromUrlOrUndefined = (url) => {
 };
 
 /**
+ * SpreadsheetのURLからファイルIDを抽出する
+ * @param {string} url - Google SpreadsheetのURL
+ * @returns {string} ファイルID
+ * @throws {Error} SpreadsheetのIDが見つからない場合
+ */
+const extractSpreadsheetIdFromUrl = (url) => {
+  const spreadsheetId = extractSpreadsheetIdFromUrlOrUndefined(url);
+  if (spreadsheetId === undefined) {
+    throw new Error(`Could not extract spreadsheet ID from URL: ${url}`);
+  }
+  return spreadsheetId;
+};
+
+/**
  * Google FormのURLからファイルIDを抽出する
  * @param {string} url - Google FormのURL
  * @returns {string|undefined} ファイルID、見つからない場合はundefined
@@ -614,6 +628,20 @@ const extractFormIdFromUrlOrUndefined = (url) => {
 };
 
 /**
+ * Google FormのURLからファイルIDを抽出する
+ * @param {string} url - Google FormのURL
+ * @returns {string} ファイルID
+ * @throws {Error} FormのIDが見つからない場合
+ */
+const extractFormIdFromUrl = (url) => {
+  const formId = extractFormIdFromUrlOrUndefined(url);
+  if (formId === undefined) {
+    throw new Error(`Could not extract form ID from URL: ${url}`);
+  }
+  return formId;
+};
+
+/**
  * Google DriveファイルのURLからファイルIDを抽出する
  * @param {string} url - Google DriveファイルのURL
  * @returns {string|undefined} ファイルID、見つからない場合はundefined
@@ -621,6 +649,20 @@ const extractFormIdFromUrlOrUndefined = (url) => {
 const extractDriveFileIdFromUrlOrUndefined = (url) => {
   const match = url.match(/\/file\/d\/([a-zA-Z0-9-_]+)/);
   return match && match[1] ? match[1] : undefined;
+};
+
+/**
+ * Google DriveファイルのURLからファイルIDを抽出する
+ * @param {string} url - Google DriveファイルのURL
+ * @returns {string} ファイルID
+ * @throws {Error} DriveファイルのIDが見つからない場合
+ */
+const extractDriveFileIdFromUrl = (url) => {
+  const driveFileId = extractDriveFileIdFromUrlOrUndefined(url);
+  if (driveFileId === undefined) {
+    throw new Error(`Could not extract drive file ID from URL: ${url}`);
+  }
+  return driveFileId;
 };
 
 /**
