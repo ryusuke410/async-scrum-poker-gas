@@ -101,7 +101,6 @@ const isSpreadsheetsCollection = (spreadsheets) => {
 const isGridRange = (range) => {
   return (
     range !== undefined &&
-    range.sheetId !== undefined &&
     range.startRowIndex !== undefined &&
     range.endRowIndex !== undefined &&
     range.startColumnIndex !== undefined &&
