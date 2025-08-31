@@ -2183,7 +2183,10 @@ const getFormFromUrl = (formUrl) => {
     throw new Error(`Invalid Google Form URL: ${formUrl}`);
   }
   const formId = match[1];
-  // @ts-ignore
+  if (!formId) {
+    throw new Error(`Could not extract Form ID from URL: ${formUrl}`);
+  }
+
   return FormApp.openById(formId);
 };
 
@@ -2213,7 +2216,6 @@ const setupFormSections = (formUrl, title, issueList) => {
   // 3. PAGE_BREAKを探し、2つ目以降があれば削除
   let pageBreakIndices = [];
   for (let i = 0; i < items.length; i++) {
-    // @ts-ignore
     if (items[i].getType() === FormApp.ItemType.PAGE_BREAK) {
       pageBreakIndices.push(i);
     }
@@ -2243,11 +2245,8 @@ const setupFormSections = (formUrl, title, issueList) => {
   const firstPageBreakIndex = pageBreakIndices[0];
 
   const expectedStructure = [
-    // @ts-ignore
     FormApp.ItemType.PAGE_BREAK,
-    // @ts-ignore
     FormApp.ItemType.PARAGRAPH_TEXT,
-    // @ts-ignore
     FormApp.ItemType.LIST,
   ];
 
@@ -2332,7 +2331,6 @@ const setupFormSections = (formUrl, title, issueList) => {
   }
 
   // シートとの同期を待つ
-  // @ts-ignore
   Utilities.sleep(2000);
 
   logInfo("Successfully updated all section titles with issue URLs", {
@@ -2347,7 +2345,6 @@ const setupFormSections = (formUrl, title, issueList) => {
  * カスタムメニューを追加する
  */
 const onOpen = () => {
-  // @ts-ignore
   const ui = SpreadsheetApp.getUi();
   ui.createMenu('拡張コマンド')
     .addItem('新規 async 見積もり発行', 'runCreateEstimate')
