@@ -639,18 +639,10 @@ const createEstimateFromTemplates = (deadlineDate) => {
     });
 
     // 結果スプシに見積もりメンバー全員の閲覧権限を付与
-    try {
-      grantViewPermissionToEstimateMembers(resultFileId, "結果スプシ");
-      logInfo("Estimate members view permissions granted successfully", {
-        resultUrl,
-      });
-    } catch (err) {
-      const e = err instanceof Error ? err : new Error(String(err));
-      logWarn("Failed to grant estimate members view permissions", {
-        error: e.message,
-        resultUrl,
-      });
-    }
+    grantViewPermissionToEstimateMembers(resultFileId, "結果スプシ");
+    logInfo("Estimate members view permissions granted successfully", {
+      resultUrl,
+    });
   } catch (err) {
     const e = err instanceof Error ? err : new Error(String(err));
     logWarn("Failed to grant PO group permissions", {
