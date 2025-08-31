@@ -414,7 +414,7 @@ const linkFormToSpreadsheet = (formUrl, spreadsheetUrl) => {
  * @param {string} fileId - ファイルID
  * @param {string} fileType - ファイルの種類（ログ用）
  */
-const grantEditPermissionToPOGroup = (fileId, fileType) => {
+const grantEditPermissionToPoGroup = (fileId, fileType) => {
   const poEmails = getPoEmails();
 
   if (!poEmails.length) {
@@ -570,9 +570,9 @@ const createEstimateFromTemplates = (deadlineDate) => {
     const formFileId = extractFileIdFromUrl(formUrl, "Google Form");
     const resultFileId = extractFileIdFromUrl(resultUrl, "結果スプシ");
 
-    grantEditPermissionToPOGroup(midFileId, "中間スプシ");
-    grantEditPermissionToPOGroup(formFileId, "Google Form");
-    grantEditPermissionToPOGroup(resultFileId, "結果スプシ");
+    grantEditPermissionToPoGroup(midFileId, "中間スプシ");
+    grantEditPermissionToPoGroup(formFileId, "Google Form");
+    grantEditPermissionToPoGroup(resultFileId, "結果スプシ");
 
     logInfo("PO group permissions granted successfully", {
       midUrl,
