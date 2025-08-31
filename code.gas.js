@@ -312,16 +312,7 @@ const getResultSpreadsheetLink = () =>
  */
 const copySpreadsheetFromUrl = (templateUrl, newTitle) => {
   // URLからスプレッドシートIDを抽出
-  const match = templateUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-  if (!match) {
-    throw new Error(`Invalid spreadsheet URL: ${templateUrl}`);
-  }
-  const templateId = match[1];
-  if (!templateId) {
-    throw new Error(
-      `Could not extract spreadsheet ID from URL: ${templateUrl}`
-    );
-  }
+  const templateId = extractSpreadsheetIdFromUrl(templateUrl);
 
   const templateFile = DriveApp.getFileById(templateId);
   const copiedFile = templateFile.makeCopy(newTitle);
@@ -338,14 +329,7 @@ const copySpreadsheetFromUrl = (templateUrl, newTitle) => {
  */
 const copyFormFromUrl = (templateUrl, newTitle) => {
   // URLからFormIDを抽出
-  const match = templateUrl.match(/\/forms\/d\/([a-zA-Z0-9-_]+)/);
-  if (!match) {
-    throw new Error(`Invalid form URL: ${templateUrl}`);
-  }
-  const templateId = match[1];
-  if (!templateId) {
-    throw new Error(`Could not extract form ID from URL: ${templateUrl}`);
-  }
+  const templateId = extractFormIdFromUrl(templateUrl);
 
   const templateFile = DriveApp.getFileById(templateId);
   const copiedFile = templateFile.makeCopy(newTitle);
@@ -361,28 +345,10 @@ const copyFormFromUrl = (templateUrl, newTitle) => {
  */
 const linkFormToSpreadsheet = (formUrl, spreadsheetUrl) => {
   // FormのURLからIDを抽出
-  const formMatch = formUrl.match(/\/forms\/d\/([a-zA-Z0-9-_]+)/);
-  if (!formMatch) {
-    throw new Error(`Invalid Google Form URL: ${formUrl}`);
-  }
-  const formId = formMatch[1];
-  if (!formId) {
-    throw new Error(`Could not extract form ID from URL: ${formUrl}`);
-  }
+  const formId = extractFormIdFromUrl(formUrl);
 
   // SpreadsheetのURLからIDを抽出
-  const spreadsheetMatch = spreadsheetUrl.match(
-    /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/
-  );
-  if (!spreadsheetMatch) {
-    throw new Error(`Invalid Spreadsheet URL: ${spreadsheetUrl}`);
-  }
-  const spreadsheetId = spreadsheetMatch[1];
-  if (!spreadsheetId) {
-    throw new Error(
-      `Could not extract spreadsheet ID from URL: ${spreadsheetUrl}`
-    );
-  }
+  const spreadsheetId = extractSpreadsheetIdFromUrl(spreadsheetUrl);
 
   try {
     const form = FormApp.openById(formId);
@@ -781,9 +747,9 @@ const createEstimateFromTemplates = (deadlineDate) => {
   });
 
   try {
-    const midFileId = extractFileIdFromUrl(midUrl, "中間スプシ");
-    const formFileId = extractFileIdFromUrl(formUrl, "Google Form");
-    const resultFileId = extractFileIdFromUrl(resultUrl, "結果スプシ");
+    const midFileId = extractSpreadsheetIdFromUrl(midUrl);
+    const formFileId = extractFormIdFromUrl(formUrl);
+    const resultFileId = extractSpreadsheetIdFromUrl(resultUrl);
 
     grantEditPermissionToPoGroup(midFileId, "中間スプシ");
     // Note: POグループにはフォームの編集権限ではなく回答権限を付与
@@ -1130,18 +1096,7 @@ const formResponsesTable = {
  */
 const addFormResponsesDummyRow = (spreadsheetUrl) => {
   // SpreadsheetのURLからIDを抽出
-  const spreadsheetMatch = spreadsheetUrl.match(
-    /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/
-  );
-  if (!spreadsheetMatch) {
-    throw new Error(`Invalid spreadsheet URL: ${spreadsheetUrl}`);
-  }
-  const spreadsheetId = spreadsheetMatch[1];
-  if (!spreadsheetId) {
-    throw new Error(
-      `Could not extract spreadsheet ID from URL: ${spreadsheetUrl}`
-    );
-  }
+  const spreadsheetId = extractSpreadsheetIdFromUrl(spreadsheetUrl);
 
   if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
     throw new Error(
@@ -1328,18 +1283,7 @@ const membersTable = {
  */
 const updateMembersTable = (spreadsheetUrl) => {
   // SpreadsheetのURLからIDを抽出
-  const spreadsheetMatch = spreadsheetUrl.match(
-    /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/
-  );
-  if (!spreadsheetMatch) {
-    throw new Error(`Invalid spreadsheet URL: ${spreadsheetUrl}`);
-  }
-  const spreadsheetId = spreadsheetMatch[1];
-  if (!spreadsheetId) {
-    throw new Error(
-      `Could not extract spreadsheet ID from URL: ${spreadsheetUrl}`
-    );
-  }
+  const spreadsheetId = extractSpreadsheetIdFromUrl(spreadsheetUrl);
 
   logInfo("Updating Members table with data from estimate required members", {
     spreadsheetId,
@@ -1641,13 +1585,7 @@ const resultSummaryTable = {
  */
 const updateResultSummaryTable = (spreadsheetUrl) => {
   // SpreadsheetのURLからIDを抽出
-  const spreadsheetMatch = spreadsheetUrl.match(
-    /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/
-  );
-  if (!spreadsheetMatch || !spreadsheetMatch[1]) {
-    throw new Error(`Invalid spreadsheet URL: ${spreadsheetUrl}`);
-  }
-  const spreadsheetId = spreadsheetMatch[1];
+  const spreadsheetId = extractSpreadsheetIdFromUrl(spreadsheetUrl);
 
   logInfo("Updating ResultSummary table with data from estimate issue list", {
     spreadsheetId,
@@ -2639,15 +2577,7 @@ const testCore = () =>
  * @returns {any} - Formオブジェクト
  */
 const getFormFromUrl = (formUrl) => {
-  const match = formUrl.match(/\/forms\/d\/([a-zA-Z0-9-_]+)/);
-  if (!match) {
-    throw new Error(`Invalid Google Form URL: ${formUrl}`);
-  }
-  const formId = match[1];
-  if (!formId) {
-    throw new Error(`Could not extract Form ID from URL: ${formUrl}`);
-  }
-
+  const formId = extractFormIdFromUrl(formUrl);
   return FormApp.openById(formId);
 };
 
