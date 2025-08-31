@@ -608,10 +608,11 @@ const getPoGroupMembers = () => {
   }
   const meta = getTableMetaByName(poGroupMembersTable.tableName);
   const a1 = gridRangeToA1(meta.range, meta.sheetTitle);
-  // @ts-ignore
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const spreadsheetId = ss.getId();
-  // @ts-ignore
+  if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+    throw new Error("Sheets.Spreadsheets is not available");
+  }
   const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
   const values = vr.values || [];
   if (!values.length) {
@@ -685,10 +686,11 @@ const getEstimateRequiredMembers = () => {
   }
   const meta = getTableMetaByName(estimateRequiredMembersTable.tableName);
   const a1 = gridRangeToA1(meta.range, meta.sheetTitle);
-  // @ts-ignore
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const spreadsheetId = ss.getId();
-  // @ts-ignore
+  if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+    throw new Error("Sheets.Spreadsheets is not available");
+  }
   const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
   const values = vr.values || [];
   if (!values.length) {
@@ -823,7 +825,9 @@ const addFormResponsesDummyRow = (spreadsheetUrl) => {
       formResponsesMeta.range,
       formResponsesMeta.sheetTitle
     );
-    // @ts-ignore
+    if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+      throw new Error("Sheets.Spreadsheets is not available");
+    }
     const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
     const values = vr.values || [];
 
@@ -865,7 +869,9 @@ const addFormResponsesDummyRow = (spreadsheetUrl) => {
       formResponsesMeta.sheetTitle
     );
 
-    // @ts-ignore
+    if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+      throw new Error("Sheets.Spreadsheets is not available");
+    }
     Sheets.Spreadsheets.Values.update(
       { values: [dummyRowData] },
       spreadsheetId,
@@ -1002,7 +1008,9 @@ const updateMembersTable = (spreadsheetUrl) => {
 
     // テーブルの現在の範囲を取得してヘッダー行を確認
     const a1 = gridRangeToA1(membersMeta.range, membersMeta.sheetTitle);
-    // @ts-ignore
+    if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+      throw new Error("Sheets.Spreadsheets is not available");
+    }
     const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
     const values = vr.values || [];
 
@@ -1039,7 +1047,9 @@ const updateMembersTable = (spreadsheetUrl) => {
 
     // 1. 必要な行数だけ挿入
     if (requiredRows > 0) {
-      // @ts-ignore
+      if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+        throw new Error("Sheets.Spreadsheets is not available");
+      }
       Sheets.Spreadsheets.batchUpdate(
         {
           requests: [
@@ -1328,7 +1338,9 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
 
     // 1. 必要な行数だけ挿入
     if (requiredRows > 0) {
-      // @ts-ignore
+      if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+        throw new Error("Sheets.Spreadsheets is not available");
+      }
       Sheets.Spreadsheets.batchUpdate(
         {
           requests: [
@@ -1355,7 +1367,9 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
       const deleteStartRow = dataStartRow + requiredRows; // 新規挿入行の次から
       const deleteEndRow = deleteStartRow + currentDataRows; // 既存データ行数分
 
-      // @ts-ignore
+      if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+        throw new Error("Sheets.Spreadsheets is not available");
+      }
       Sheets.Spreadsheets.batchUpdate(
         {
           requests: [
@@ -1382,7 +1396,9 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
     // 3. テーブルの範囲を更新（ヘッダー + 新しいデータ行数）
     const newTableEndRow =
       (resultSummaryMeta.range.startRowIndex || 0) + 1 + requiredRows;
-    // @ts-ignore
+    if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+      throw new Error("Sheets.Spreadsheets is not available");
+    }
     Sheets.Spreadsheets.batchUpdate(
       {
         requests: [
@@ -1598,7 +1614,9 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
       resultSummaryMeta.sheetTitle
     );
 
-    // @ts-ignore
+    if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+      throw new Error("Sheets.Spreadsheets is not available");
+    }
     Sheets.Spreadsheets.Values.update(
       { values: dataRows },
       spreadsheetId,
@@ -1641,7 +1659,9 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
       };
     });
 
-    // @ts-ignore
+    if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+      throw new Error("Sheets.Spreadsheets is not available");
+    }
     Sheets.Spreadsheets.batchUpdate({ requests: linkRequests }, spreadsheetId);
 
     logInfo("Successfully updated ResultSummary table", {
@@ -1681,7 +1701,6 @@ const estimateHistoryTable = {
 const setCellLink = (cell, text, url) => {
   cell.setValue(text);
   cell.setRichTextValue(
-    // @ts-ignore
     SpreadsheetApp.newRichTextValue().setText(text).setLinkUrl(url).build()
   );
 };
@@ -1714,9 +1733,10 @@ const addEstimateHistoryTopRow = (row) => {
     },
     sheetTitle
   );
-  // @ts-ignore
+  if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+    throw new Error("Sheets.Spreadsheets is not available");
+  }
   const headerVals = (Sheets.Spreadsheets.Values.get(
-    // @ts-ignore
     SpreadsheetApp.getActiveSpreadsheet().getId(),
     headerA1
   ).values || [[]])[0].map((v) => String(v).trim());
@@ -1751,14 +1771,15 @@ const addEstimateHistoryTopRow = (row) => {
     endColumnIndex: endCol0,
   };
 
-  // @ts-ignore
+  if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+    throw new Error("Sheets.Spreadsheets is not available");
+  }
   Sheets.Spreadsheets.batchUpdate(
     {
       requests: [
         { insertRange: { range: insertRange, shiftDimension: "ROWS" } },
       ],
     },
-    // @ts-ignore
     SpreadsheetApp.getActiveSpreadsheet().getId()
   );
 
@@ -1773,10 +1794,11 @@ const addEstimateHistoryTopRow = (row) => {
     },
     sheetTitle
   );
-  // @ts-ignore
+  if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+    throw new Error("Sheets.Spreadsheets is not available");
+  }
   Sheets.Spreadsheets.Values.update(
     { values: [valuesRow] },
-    // @ts-ignore
     SpreadsheetApp.getActiveSpreadsheet().getId(),
     rowA1,
     { valueInputOption: "USER_ENTERED" }
@@ -1832,10 +1854,11 @@ const addEstimateHistoryTopRow = (row) => {
     ],
   };
 
-  // @ts-ignore
+  if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+    throw new Error("Sheets.Spreadsheets is not available");
+  }
   Sheets.Spreadsheets.batchUpdate(
     linkReq,
-    // @ts-ignore
     SpreadsheetApp.getActiveSpreadsheet().getId()
   );
 
@@ -1865,10 +1888,11 @@ const getEstimateIssueList = () => {
   }
   const meta = getTableMetaByName(estimateIssueListTable.tableName);
   const a1 = gridRangeToA1(meta.range, meta.sheetTitle);
-  // @ts-ignore
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const spreadsheetId = ss.getId();
-  // @ts-ignore
+  if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+    throw new Error("Sheets.Spreadsheets is not available");
+  }
   const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
   const values = vr.values || [];
   if (!values.length) {
@@ -1932,10 +1956,11 @@ const getEstimateDeadlines = () => {
   }
   const meta = getTableMetaByName(estimateDeadlineTable.tableName);
   const a1 = gridRangeToA1(meta.range, meta.sheetTitle);
-  // @ts-ignore
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const spreadsheetId = ss.getId();
-  // @ts-ignore
+  if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+    throw new Error("Sheets.Spreadsheets is not available");
+  }
   const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
   const values = vr.values || [];
   if (!values.length) {
