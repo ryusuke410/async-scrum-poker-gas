@@ -284,6 +284,9 @@ const copySpreadsheetFromUrl = (templateUrl, newTitle) => {
     throw new Error(`Invalid spreadsheet URL: ${templateUrl}`);
   }
   const templateId = match[1];
+  if (!templateId) {
+    throw new Error(`Could not extract spreadsheet ID from URL: ${templateUrl}`);
+  }
 
   const templateFile = DriveApp.getFileById(templateId);
   const copiedFile = templateFile.makeCopy(newTitle);
@@ -305,6 +308,9 @@ const copyFormFromUrl = (templateUrl, newTitle) => {
     throw new Error(`Invalid form URL: ${templateUrl}`);
   }
   const templateId = match[1];
+  if (!templateId) {
+    throw new Error(`Could not extract form ID from URL: ${templateUrl}`);
+  }
 
   const templateFile = DriveApp.getFileById(templateId);
   const copiedFile = templateFile.makeCopy(newTitle);
@@ -325,6 +331,9 @@ const linkFormToSpreadsheet = (formUrl, spreadsheetUrl) => {
     throw new Error(`Invalid Google Form URL: ${formUrl}`);
   }
   const formId = formMatch[1];
+  if (!formId) {
+    throw new Error(`Could not extract form ID from URL: ${formUrl}`);
+  }
 
   // SpreadsheetのURLからIDを抽出
   const spreadsheetMatch = spreadsheetUrl.match(
@@ -334,9 +343,11 @@ const linkFormToSpreadsheet = (formUrl, spreadsheetUrl) => {
     throw new Error(`Invalid Spreadsheet URL: ${spreadsheetUrl}`);
   }
   const spreadsheetId = spreadsheetMatch[1];
+  if (!spreadsheetId) {
+    throw new Error(`Could not extract spreadsheet ID from URL: ${spreadsheetUrl}`);
+  }
 
   try {
-    // @ts-ignore
     const form = FormApp.openById(formId);
     const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
 
@@ -761,18 +772,24 @@ const addFormResponsesDummyRow = (spreadsheetUrl) => {
     throw new Error(`Invalid spreadsheet URL: ${spreadsheetUrl}`);
   }
   const spreadsheetId = spreadsheetMatch[1];
+  if (!spreadsheetId) {
+    throw new Error(`Could not extract spreadsheet ID from URL: ${spreadsheetUrl}`);
+  }
+
+  if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+    throw new Error("Advanced Sheets API is not enabled. Please enable it in the Google Apps Script project.");
+  }
 
   logInfo("Adding dummy row to Form_Responses", { spreadsheetId });
 
   try {
     // 対象スプレッドシートのテーブル一覧を取得
-    // @ts-ignore
     const resp = Sheets.Spreadsheets.get(spreadsheetId, {
       fields: "sheets(properties(sheetId,title),tables(name,tableId,range))",
     });
 
     const sheets = resp.sheets || [];
-    let formResponsesMeta = null;
+    let formResponsesMeta = undefined;
 
     // Form_Responses テーブルを探す
     for (const sh of sheets) {
@@ -788,7 +805,9 @@ const addFormResponsesDummyRow = (spreadsheetUrl) => {
           break;
         }
       }
-      if (formResponsesMeta) break;
+      if (formResponsesMeta) {
+        break;
+      }
     }
 
     if (!formResponsesMeta) {
@@ -856,7 +875,6 @@ const addFormResponsesDummyRow = (spreadsheetUrl) => {
 
     // テーブルの範囲を拡張してダミー行を含める（UpdateTableRequest使用）
     const newEndRowIndex = (formResponsesMeta.range.startRowIndex || 0) + 2; // ヘッダー + ダミー行
-    // @ts-ignore
     Sheets.Spreadsheets.batchUpdate(
       {
         requests: [
@@ -923,6 +941,9 @@ const updateMembersTable = (spreadsheetUrl) => {
     throw new Error(`Invalid spreadsheet URL: ${spreadsheetUrl}`);
   }
   const spreadsheetId = spreadsheetMatch[1];
+  if (!spreadsheetId) {
+    throw new Error(`Could not extract spreadsheet ID from URL: ${spreadsheetUrl}`);
+  }
 
   logInfo("Updating Members table with data from estimate required members", {
     spreadsheetId,
@@ -941,9 +962,12 @@ const updateMembersTable = (spreadsheetUrl) => {
     return;
   }
 
+  if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+    throw new Error("Advanced Sheets API is not enabled. Please enable it in the Google Apps Script project.");
+  }
+
   try {
     // 対象スプレッドシートのテーブル一覧を取得
-    // @ts-ignore
     const resp = Sheets.Spreadsheets.get(spreadsheetId, {
       fields: "sheets(properties(sheetId,title),tables(name,tableId,range))",
     });
@@ -1042,7 +1066,6 @@ const updateMembersTable = (spreadsheetUrl) => {
       const deleteStartRow = dataStartRow + requiredRows; // 新規挿入行の次から
       const deleteEndRow = deleteStartRow + currentDataRows; // 既存データ行数分
 
-      // @ts-ignore
       Sheets.Spreadsheets.batchUpdate(
         {
           requests: [
@@ -1069,7 +1092,6 @@ const updateMembersTable = (spreadsheetUrl) => {
     // 3. テーブルの範囲を更新（ヘッダー + 新しいデータ行数）
     const newTableEndRow =
       (membersMeta.range.startRowIndex || 0) + 1 + requiredRows;
-    // @ts-ignore
     Sheets.Spreadsheets.batchUpdate(
       {
         requests: [
@@ -1147,7 +1169,6 @@ const updateMembersTable = (spreadsheetUrl) => {
       membersMeta.sheetTitle
     );
 
-    // @ts-ignore
     Sheets.Spreadsheets.Values.update(
       { values: dataRows },
       spreadsheetId,
@@ -1216,9 +1237,12 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
     return;
   }
 
+  if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+    throw new Error("Advanced Sheets API is not enabled. Please enable it in the Google Apps Script project.");
+  }
+
   try {
     // 対象スプレッドシートのテーブル一覧を取得
-    // @ts-ignore
     const resp = Sheets.Spreadsheets.get(spreadsheetId, {
       fields: "sheets(properties(sheetId,title),tables(name,tableId,range))",
     });
@@ -1256,7 +1280,6 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
       resultSummaryMeta.range,
       resultSummaryMeta.sheetTitle
     );
-    // @ts-ignore
     const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
     const values = vr.values || [];
 
