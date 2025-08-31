@@ -1264,7 +1264,9 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
           break;
         }
       }
-      if (resultSummaryMeta) break;
+      if (resultSummaryMeta) {
+        break;
+      }
     }
 
     if (!resultSummaryMeta) {
