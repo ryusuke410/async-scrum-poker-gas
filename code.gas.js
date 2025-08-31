@@ -53,7 +53,7 @@ const safeMain = (name, thunk) => {
     logInfo(`${name} done`, { ms: Date.now() - t0 });
     return out;
   } catch (err) {
-    const e = /** @type {Error} */ (err);
+    const e = err instanceof Error ? err : new Error(String(err));
     logError(`${name} failed`, { message: e.message, stack: e.stack });
     throw e;
   }
@@ -399,7 +399,7 @@ const linkFormToSpreadsheet = (formUrl, spreadsheetUrl) => {
       spreadsheetId,
     });
   } catch (err) {
-    const e = /** @type {Error} */ (err);
+    const e = err instanceof Error ? err : new Error(String(err));
     logError("Failed to link form to spreadsheet", {
       formId,
       spreadsheetId,
@@ -407,6 +407,83 @@ const linkFormToSpreadsheet = (formUrl, spreadsheetUrl) => {
     });
     throw new Error(`FormとSpreadsheetのリンクに失敗しました: ${e.message}`);
   }
+};
+
+/**
+ * ファイルIDから編集権限をPOグループメンバーに付与する（通知なし）
+ * @param {string} fileId - ファイルID
+ * @param {string} fileType - ファイルの種類（ログ用）
+ */
+const grantEditPermissionToPOGroup = (fileId, fileType) => {
+  const poEmails = getPoEmails();
+
+  if (!poEmails.length) {
+    logWarn(`PO group has no email addresses, skipping permission setup for ${fileType}`);
+    return;
+  }
+
+  logInfo(`Granting edit permissions to PO group for ${fileType} (no notification)`, {
+    fileId,
+    emailCount: poEmails.length
+  });
+
+  try {
+    for (const email of poEmails) {
+      try {
+        const permission = {
+          type: 'user',
+          role: 'writer',
+          emailAddress: email
+        };
+
+        // sendNotificationEmails: false で通知を無効化
+        Drive.Permissions.create(permission, fileId, {
+          sendNotificationEmails: false
+        });
+
+        logInfo(`Edit permission granted to ${email} for ${fileType} (no notification)`, { fileId });
+      } catch (err) {
+        const e = err instanceof Error ? err : new Error(String(err));
+        logWarn(`Failed to grant permission to ${email} for ${fileType}`, {
+          fileId,
+          error: e.message
+        });
+      }
+    }
+  } catch (err) {
+    const e = err instanceof Error ? err : new Error(String(err));
+    logError(`Failed to grant permissions for ${fileType}`, {
+      fileId,
+      error: e.message
+    });
+  }
+};
+/**
+ * URLからファイルIDを抽出する
+ * @param {string} url - Google DriveファイルのURL
+ * @param {string} fileType - ファイルの種類（エラーメッセージ用）
+ * @returns {string} ファイルID
+ */
+const extractFileIdFromUrl = (url, fileType) => {
+  // Spreadsheet用のパターン
+  const spreadsheetMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (spreadsheetMatch && spreadsheetMatch[1]) {
+    return spreadsheetMatch[1];
+  }
+
+  // Form用のパターン
+  const formMatch = url.match(/\/forms\/d\/([a-zA-Z0-9-_]+)/);
+  if (formMatch && formMatch[1]) {
+    return formMatch[1];
+  }
+
+  // 一般的なDriveファイル用のパターン
+  const driveMatch = url.match(/\/file\/d\/([a-zA-Z0-9-_]+)/);
+  if (driveMatch && driveMatch[1]) {
+    return driveMatch[1];
+  }
+
+  throw new Error(`Could not extract file ID from ${fileType} URL: ${url}`);
 };
 
 /**
@@ -488,6 +565,31 @@ const createEstimateFromTemplates = (deadlineDate) => {
     resultText: `${titlePrefix}結果`,
     resultUrl: resultUrl,
   });
+
+  // POグループメンバーに編集権限を付与（通知なし）
+  try {
+    const midFileId = extractFileIdFromUrl(midUrl, "中間スプシ");
+    const formFileId = extractFileIdFromUrl(formUrl, "Google Form");
+    const resultFileId = extractFileIdFromUrl(resultUrl, "結果スプシ");
+
+    grantEditPermissionToPOGroup(midFileId, "中間スプシ");
+    grantEditPermissionToPOGroup(formFileId, "Google Form");
+    grantEditPermissionToPOGroup(resultFileId, "結果スプシ");
+
+    logInfo("PO group permissions granted successfully", {
+      midUrl,
+      formUrl,
+      resultUrl,
+    });
+  } catch (err) {
+    const e = err instanceof Error ? err : new Error(String(err));
+    logWarn("Failed to grant PO group permissions", {
+      error: e.message,
+      midUrl,
+      formUrl,
+      resultUrl,
+    });
+  }
 
   logInfo("createEstimateFromTemplates completed", {
     date: deadlineDate,
@@ -2186,7 +2288,7 @@ const runTestsCore = (input) => {
         message: ok ? undefined : tc.failMessage,
       });
     } catch (err) {
-      const e = /** @type {Error} */ (err);
+      const e = err instanceof Error ? err : new Error(String(err));
       const ms = Date.now() - t0;
       results.push({
         name: tc.name,
