@@ -591,6 +591,14 @@ const createEstimateFromTemplates = (deadlineDate) => {
     issueCount: issueList.length,
   });
 
+  // Google Formの回答を可能にする
+  const form = getFormFromUrl(formUrl);
+  form.setAcceptingResponses(true);
+
+  logInfo("Form accepting responses enabled", {
+    formUrl,
+  });
+
   // Form_Responses テーブルにダミー行を追加
   addFormResponsesDummyRow(midUrl);
 
