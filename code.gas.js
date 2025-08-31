@@ -594,27 +594,57 @@ const extractFileIdFromUrl = (url, fileType) => {
 };
 
 /**
+ * SpreadsheetのURLからファイルIDを抽出する
+ * @param {string} url - Google SpreadsheetのURL
+ * @returns {string|undefined} ファイルID、見つからない場合はundefined
+ */
+const extractSpreadsheetIdFromUrlOrUndefined = (url) => {
+  const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  return match && match[1] ? match[1] : undefined;
+};
+
+/**
+ * Google FormのURLからファイルIDを抽出する
+ * @param {string} url - Google FormのURL
+ * @returns {string|undefined} ファイルID、見つからない場合はundefined
+ */
+const extractFormIdFromUrlOrUndefined = (url) => {
+  const match = url.match(/\/forms\/d\/([a-zA-Z0-9-_]+)/);
+  return match && match[1] ? match[1] : undefined;
+};
+
+/**
+ * Google DriveファイルのURLからファイルIDを抽出する
+ * @param {string} url - Google DriveファイルのURL
+ * @returns {string|undefined} ファイルID、見つからない場合はundefined
+ */
+const extractDriveFileIdFromUrlOrUndefined = (url) => {
+  const match = url.match(/\/file\/d\/([a-zA-Z0-9-_]+)/);
+  return match && match[1] ? match[1] : undefined;
+};
+
+/**
  * URLからファイルIDを抽出する（見つからない場合はundefinedを返す）
  * @param {string} url - Google DriveファイルのURL
  * @returns {string|undefined} ファイルID、見つからない場合はundefined
  */
 const extractFileIdFromUrlOrUndefined = (url) => {
   // Spreadsheet用のパターン
-  const spreadsheetMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-  if (spreadsheetMatch && spreadsheetMatch[1]) {
-    return spreadsheetMatch[1];
+  const spreadsheetId = extractSpreadsheetIdFromUrlOrUndefined(url);
+  if (spreadsheetId) {
+    return spreadsheetId;
   }
 
   // Form用のパターン
-  const formMatch = url.match(/\/forms\/d\/([a-zA-Z0-9-_]+)/);
-  if (formMatch && formMatch[1]) {
-    return formMatch[1];
+  const formId = extractFormIdFromUrlOrUndefined(url);
+  if (formId) {
+    return formId;
   }
 
   // 一般的なDriveファイル用のパターン
-  const driveMatch = url.match(/\/file\/d\/([a-zA-Z0-9-_]+)/);
-  if (driveMatch && driveMatch[1]) {
-    return driveMatch[1];
+  const driveFileId = extractDriveFileIdFromUrlOrUndefined(url);
+  if (driveFileId) {
+    return driveFileId;
   }
 
   return undefined;
