@@ -999,7 +999,7 @@ const updateMembersTable = (spreadsheetUrl) => {
     });
 
     const sheets = resp.sheets || [];
-    let membersMeta = null;
+    let membersMeta = undefined;
 
     // メンバーテーブルを探す
     for (const sh of sheets) {
@@ -1284,7 +1284,7 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
     });
 
     const sheets = resp.sheets || [];
-    let resultSummaryMeta = null;
+    let resultSummaryMeta = undefined;
 
     // 結果まとめテーブルを探す
     for (const sh of sheets) {
