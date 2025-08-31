@@ -12,6 +12,7 @@
   "packageManager": "pnpm@10.11.1",
   "devDependencies": {
     "@types/google-apps-script": "^2.0.0",
+    "googleapis": "^159.0.0",
     "typescript": "^5.9.2"
   }
 }

@@ -1,3 +1,6 @@
+/// <reference types="@types/google-apps-script" />
+/// <reference types="./types/sheets-advanced" />
+/// <reference types="./types/type-tools" />
 // @ts-check
 "use strict";
 
@@ -12,18 +15,27 @@
  */
 
 /** ===== ログ ========================================== */
-/** @type {(msg: string, obj?: unknown) => void} */
-const logInfo = (msg, obj) =>
-  // @ts-ignore
+/**
+ * @param {string} msg
+ * @param {unknown} [obj]
+ */
+const logInfo = (msg, obj) => {
   Logger.log(`[INFO] ${msg}${obj ? " " + JSON.stringify(obj) : ""}`);
-/** @type {(msg: string, obj?: unknown) => void} */
-const logWarn = (msg, obj) =>
-  // @ts-ignore
+};
+/**
+ * @param {string} msg
+ * @param {unknown} [obj]
+ */
+const logWarn = (msg, obj) => {
   Logger.log(`[WARN] ${msg}${obj ? " " + JSON.stringify(obj) : ""}`);
-/** @type {(msg: string, obj?: unknown) => void} */
-const logError = (msg, obj) =>
-  // @ts-ignore
+};
+/**
+ * @param {string} msg
+ * @param {unknown} [obj]
+ */
+const logError = (msg, obj) => {
   Logger.log(`[ERROR] ${msg}${obj ? " " + JSON.stringify(obj) : ""}`);
+};
 
 /** ===== 共通実行ラッパ ================================= */
 /**
@@ -65,6 +77,7 @@ const estimateTemplatesTable = {
 };
 
 /** 型メモ */
+/** @typedef  */
 /** @typedef {any} GTable */
 /** @typedef {any} GGridRange */
 /** @typedef {{ tableId: string, sheetId: number, sheetTitle: string, range: GGridRange }} TableMeta */
@@ -74,16 +87,29 @@ const estimateTemplatesTable = {
 let _estimateTemplateCache = undefined;
 
 /** ====== テーブル検索ユーティリティ ====== */
+
+/** @type {(spreadsheets: GoogleAppsScript.Sheets.Collection.SpreadsheetsCollection | undefined) => spreadsheets is RequiredToBeDefined<GoogleAppsScript.Sheets.Collection.SpreadsheetsCollection>} */
+const isSpreadsheetsCollection = (spreadsheets) => {
+  return (
+    spreadsheets !== undefined &&
+    spreadsheets.DeveloperMetadata !== undefined &&
+    spreadsheets.Values !== undefined &&
+    spreadsheets.Sheets !== undefined
+  );
+};
+
 /**
  * スプレッドシート内の全テーブルを列挙し、name->meta の辞書を返す。
  * @returns {Record<string, TableMeta>}
  */
 const getTablesIndex = () => {
-  // @ts-ignore
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const spreadsheetId = ss.getId();
-  // Advanced Sheets API を使用（サービスを有効化しておくこと）
-  // @ts-ignore
+
+  if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+    throw new Error("Advanced Sheets API is not enabled. Please enable it in the Google Apps Script project.");
+  }
+
   const resp = Sheets.Spreadsheets.get(spreadsheetId, {
     fields: "sheets(properties(sheetId,title),tables(name,tableId,range))",
   });
@@ -152,10 +178,12 @@ const getEstimateTemplateLinks = () => {
   }
   const meta = getTableMetaByName(estimateTemplatesTable.tableName);
   const a1 = gridRangeToA1(meta.range, meta.sheetTitle);
-  // @ts-ignore
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const spreadsheetId = ss.getId();
-  // @ts-ignore
+
+  if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+    throw new Error("Advanced Sheets API is not enabled. Please enable it in the Google Apps Script project.");
+  }
   const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
   const values = vr.values || [];
   if (!values.length) {
@@ -257,9 +285,7 @@ const copySpreadsheetFromUrl = (templateUrl, newTitle) => {
   }
   const templateId = match[1];
 
-  // @ts-ignore
   const templateFile = DriveApp.getFileById(templateId);
-  // @ts-ignore
   const copiedFile = templateFile.makeCopy(newTitle);
   const copiedId = copiedFile.getId();
 
@@ -280,9 +306,7 @@ const copyFormFromUrl = (templateUrl, newTitle) => {
   }
   const templateId = match[1];
 
-  // @ts-ignore
   const templateFile = DriveApp.getFileById(templateId);
-  // @ts-ignore
   const copiedFile = templateFile.makeCopy(newTitle);
   const copiedId = copiedFile.getId();
 
@@ -314,13 +338,10 @@ const linkFormToSpreadsheet = (formUrl, spreadsheetUrl) => {
   try {
     // @ts-ignore
     const form = FormApp.openById(formId);
-    // @ts-ignore
     const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
 
     // フォームの送信先をスプレッドシートに設定
-    // @ts-ignore
     form.setDestination(
-      // @ts-ignore
       FormApp.DestinationType.SPREADSHEET,
       spreadsheet.getId()
     );
