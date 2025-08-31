@@ -457,6 +457,64 @@ const grantEditPermissionToPoGroup = (fileId, fileType) => {
     }
   }
 };
+
+/**
+ * ファイルIDから閲覧権限を見積もり必要メンバー全員に付与する（通知なし）
+ * POメンバーは既に編集権限を持っているため除外する
+ * @param {string} fileId - ファイルID
+ * @param {string} fileType - ファイルの種類（ログ用）
+ */
+const grantViewPermissionToEstimateMembers = (fileId, fileType) => {
+  const members = getEstimateRequiredMembers();
+  const poEmails = getPoEmails();
+
+  // POメンバーを除外した見積もり必要メンバーのメールアドレス一覧を作成
+  const memberEmails = members
+    .map(member => member.email)
+    .filter(email => email && !poEmails.includes(email));
+
+  if (!memberEmails.length) {
+    logWarn(
+      `No email addresses found in estimate required members (excluding PO members), skipping permission setup for ${fileType}`
+    );
+    return;
+  }
+
+  logInfo(
+    `Granting view permissions to estimate members for ${fileType} (no notification, excluding PO members)`,
+    {
+      fileId,
+      emailCount: memberEmails.length,
+      totalMembersCount: members.length,
+      excludedPoCount: members.length - memberEmails.length,
+    }
+  );
+
+  for (const email of memberEmails) {
+    try {
+      const permission = {
+        type: "user",
+        role: "reader",
+        emailAddress: email,
+      };
+
+      Drive.Permissions.create(permission, fileId, {
+        sendNotificationEmails: false,
+      });
+
+      logInfo(
+        `View permission granted to ${email} for ${fileType} (no notification)`,
+        { fileId }
+      );
+    } catch (err) {
+      const e = err instanceof Error ? err : new Error(String(err));
+      logWarn(`Failed to grant permission to ${email} for ${fileType}`, {
+        fileId,
+        error: e.message,
+      });
+    }
+  }
+};
 /**
  * URLからファイルIDを抽出する
  * @param {string} url - Google DriveファイルのURL
@@ -579,6 +637,20 @@ const createEstimateFromTemplates = (deadlineDate) => {
       formUrl,
       resultUrl,
     });
+
+    // 結果スプシに見積もりメンバー全員の閲覧権限を付与
+    try {
+      grantViewPermissionToEstimateMembers(resultFileId, "結果スプシ");
+      logInfo("Estimate members view permissions granted successfully", {
+        resultUrl,
+      });
+    } catch (err) {
+      const e = err instanceof Error ? err : new Error(String(err));
+      logWarn("Failed to grant estimate members view permissions", {
+        error: e.message,
+        resultUrl,
+      });
+    }
   } catch (err) {
     const e = err instanceof Error ? err : new Error(String(err));
     logWarn("Failed to grant PO group permissions", {
