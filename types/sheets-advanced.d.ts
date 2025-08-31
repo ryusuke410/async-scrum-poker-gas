@@ -24,6 +24,53 @@ declare global {
           resource: sheets_v4.Schema$BatchUpdateSpreadsheetRequest;
         }): sheets_v4.Schema$BatchUpdateSpreadsheetResponse;
       }
+      namespace Schema {
+        interface Sheet {
+          tables?: Sheets.Schema.Table[] | undefined;
+        }
+        interface Table {
+          tableId?: string | undefined;
+          name?: string | undefined;
+          range?: Sheets.Schema.GridRange | undefined;
+          rowsProperties?: Sheets.Schema.TableRowProperties | undefined;
+          columnsProperties?: Sheets.Schema.TableColumnProperties | undefined;
+        }
+        interface TableRowProperties {
+          headerColorStyle?: Sheets.Schema.ColorStyle | undefined;
+          firstBandColorStyle?: Sheets.Schema.ColorStyle | undefined;
+          secondBandColorStyle?: Sheets.Schema.ColorStyle | undefined;
+          footerColorStyle?: Sheets.Schema.ColorStyle | undefined;
+        }
+        interface TableColumnProperties {
+          columnIndex?: number | undefined;
+          columnName?: string | undefined;
+          columnType?: Sheets.Schema.ColumnType;
+          dataValidationRule?: Sheets.Schema.DataValidationRule | undefined;
+        }
+        type ColumnType =
+            | "COLUMN_TYPE_UNSPECIFIED"
+            | "DOUBLE"
+            | "CURRENCY"
+            | "PERCENT"
+            | "DATE"
+            | "TIME"
+            | "DATE_TIME"
+            | "TEXT"
+            | "BOOLEAN"
+            | "DROPDOWN"
+            | "FILES_CHIP"
+            | "PEOPLE_CHIP"
+            | "FINANCE_CHIP"
+            | "PLACE_CHIP"
+            | "RATINGS_CHIP";
+        interface Request {
+          updateTable?: Sheets.Schema.UpdateTableRequest | undefined;
+        }
+        interface UpdateTableRequest {
+          table?: Sheets.Schema.Table | undefined;
+          fields?: string | undefined;
+        }
+      }
     }
   }
 }

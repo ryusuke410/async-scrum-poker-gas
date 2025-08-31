@@ -77,10 +77,6 @@ const estimateTemplatesTable = {
 };
 
 /** 型メモ */
-/** @typedef  */
-/** @typedef {any} GTable */
-/** @typedef {any} GGridRange */
-/** @typedef {{ tableId: string, sheetId: number, sheetTitle: string, range: GGridRange }} TableMeta */
 /** @typedef {{ googleForm: string, midSpreadsheet: string, resultSpreadsheet: string }} EstimateTemplateLinks */
 
 /** @type {EstimateTemplateLinks|undefined} */
@@ -126,7 +122,7 @@ const getTablesIndex = () => {
         tableId: String(t.tableId),
         sheetId,
         sheetTitle,
-        range: /** @type {GGridRange} */ (t.range),
+        range: t.range,
       };
     }
   }
@@ -147,7 +143,7 @@ const getTableMetaByName = (tableName) => {
 
 /**
  * GridRange -> A1 変換
- * @param {GGridRange} gr
+ * @param {GoogleAppsScript.Sheets.} gr
  * @param {string} sheetTitle
  */
 const gridRangeToA1 = (gr, sheetTitle) => {
@@ -798,11 +794,28 @@ const addFormResponsesDummyRow = (spreadsheetUrl) => {
       const tables = sh.tables || [];
       for (const tbl of tables) {
         if (tbl.name === formResponsesTable.tableName) {
+          const tableId = tbl.tableId;
+          if (tableId === undefined) {
+            throw new Error("Table ID is undefined");
+          }
+          const sheetId = sh.properties?.sheetId;
+          if (sheetId === undefined) {
+            throw new Error("Sheet ID is undefined");
+          }
+          const sheetTitle = sh.properties?.title;
+          if (sheetTitle === undefined) {
+            throw new Error("Sheet title is undefined");
+          }
+          const range = tbl.range;
+          if (range === undefined) {
+            throw new Error("Table range is undefined");
+          }
+
           formResponsesMeta = {
-            tableId: tbl.tableId,
-            sheetId: sh.properties.sheetId,
-            sheetTitle: sh.properties.title,
-            range: tbl.range,
+            tableId,
+            sheetId,
+            sheetTitle,
+            range,
           };
           break;
         }
@@ -835,7 +848,10 @@ const addFormResponsesDummyRow = (spreadsheetUrl) => {
       throw new Error(`Table is empty: ${formResponsesTable.tableName}`);
     }
 
-    const header = values[0].map((v) => String(v).trim());
+    const header = values[0]?.map((v) => String(v).trim());
+    if (!header) {
+      throw new Error("Header row is undefined");
+    }
     logInfo("Form_Responses headers", { header });
 
     // 力技: 普通のスプレッドシートとして行追加
@@ -916,7 +932,7 @@ const addFormResponsesDummyRow = (spreadsheetUrl) => {
     );
   } catch (err) {
     logError("Failed to add dummy row to Form_Responses", {
-      error: err.toString(),
+      error: String(err),
       spreadsheetUrl,
     });
     throw err;
@@ -2225,24 +2241,30 @@ const setupFormSections = (formUrl, title, issueList) => {
     throw new Error("No PAGE_BREAK found in form");
   }
 
+  const firstPageBreakIndex = pageBreakIndices[0];
+  if (firstPageBreakIndex === undefined) {
+    throw new Error("No PAGE_BREAK found");
+  }
+  const secondPageBreakIndex = pageBreakIndices[1];
+
   // 2つ目以降のPAGE_BREAKとそれ以降のアイテムを削除
   if (pageBreakIndices.length > 1) {
     logInfo("Removing extra PAGE_BREAK items", {
       extraPageBreaks: pageBreakIndices.length - 1,
-      firstPageBreakIndex: pageBreakIndices[0],
-      itemsToRemove: items.length - pageBreakIndices[1],
+      firstPageBreakIndex,
+      secondPageBreakIndex,
     });
 
+    if (secondPageBreakIndex !== undefined) {
     // 後ろから削除（インデックスがずれないように）
-    for (let i = items.length - 1; i >= pageBreakIndices[1]; i--) {
+    for (let i = items.length - 1; i >= secondPageBreakIndex; i--) {
       form.deleteItem(i);
+    }
     }
 
     // アイテムリストを再取得
     items = form.getItems();
   }
-
-  const firstPageBreakIndex = pageBreakIndices[0];
 
   const expectedStructure = [
     FormApp.ItemType.PAGE_BREAK,
@@ -2318,6 +2340,9 @@ const setupFormSections = (formUrl, title, issueList) => {
 
     // 課題リストから対応する課題情報を取得
     const issue = issueList[i];
+    if (!issue) {
+      throw new Error(`No issue found for section index ${i}`);
+    }
 
     sectionHeaderLikeItem.setTitle(issue.url);
     premiseItem.setTitle(`E${i + 1}. 見積もりの前提、質問`);
