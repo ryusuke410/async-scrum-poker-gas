@@ -470,8 +470,8 @@ const grantViewPermissionToEstimateMembers = (fileId, fileType) => {
 
   // POメンバーを除外した見積もり必要メンバーのメールアドレス一覧を作成
   const memberEmails = members
-    .map(member => member.email)
-    .filter(email => email && !poEmails.includes(email));
+    .map((member) => member.email)
+    .filter((email) => email && !poEmails.includes(email));
 
   if (!memberEmails.length) {
     logWarn(
@@ -515,6 +515,70 @@ const grantViewPermissionToEstimateMembers = (fileId, fileType) => {
     }
   }
 };
+
+/**
+ * フォームIDから回答権限を見積もり必要メンバーに付与する
+ * POメンバーは既に編集権限を持っているため除外する
+ * 見積もりが必要なメンバーには通知を送信し、それ以外には通知を送信しない
+ * @param {string} formId - フォームID
+ */
+const grantFormResponsePermissionToEstimateMembers = (formId) => {
+  const members = getEstimateRequiredMembers();
+  const poEmails = getPoEmails();
+
+  // POメンバーを除外した見積もり必要メンバーのメールアドレス一覧を作成
+  const memberEmails = members
+    .map((member) => member.email)
+    .filter((email) => email && !poEmails.includes(email));
+
+  if (!memberEmails.length) {
+    logWarn(
+      `No email addresses found in estimate required members (excluding PO members), skipping form response permission setup`
+    );
+    return;
+  }
+
+  logInfo(
+    `Granting form response permissions to estimate members (excluding PO members)`,
+    {
+      formId,
+      emailCount: memberEmails.length,
+      totalMembersCount: members.length,
+      excludedPoCount: members.length - memberEmails.length,
+    }
+  );
+
+  for (const email of memberEmails) {
+    try {
+      // 見積もりが必要なメンバーかどうかを判定
+      const member = members.find((m) => m.email === email);
+      const needsEstimate = member && member.responseRequired === "必要";
+
+      const permission = {
+        role: "reader",
+        type: "user",
+        emailAddress: email,
+        view: "published",
+      };
+
+      Drive.Permissions.create(permission, formId, {
+        sendNotificationEmail: needsEstimate,
+      });
+
+      logInfo(
+        `Form response permission granted to ${email} (notification: ${needsEstimate})`,
+        { formId, needsEstimate }
+      );
+    } catch (err) {
+      const e = err instanceof Error ? err : new Error(String(err));
+      logWarn(`Failed to grant form response permission to ${email}`, {
+        formId,
+        error: e.message,
+      });
+    }
+  }
+};
+
 /**
  * URLからファイルIDを抽出する
  * @param {string} url - Google DriveファイルのURL
@@ -637,13 +701,18 @@ const createEstimateFromTemplates = (deadlineDate) => {
     const resultFileId = extractFileIdFromUrl(resultUrl, "結果スプシ");
 
     grantEditPermissionToPoGroup(midFileId, "中間スプシ");
-    grantEditPermissionToPoGroup(formFileId, "Google Form");
+    // Note: POグループにはフォームの編集権限ではなく回答権限を付与
     grantEditPermissionToPoGroup(resultFileId, "結果スプシ");
 
     logInfo("PO group permissions granted successfully", {
       midUrl,
-      formUrl,
       resultUrl,
+    });
+
+    // フォームに見積もりメンバー全員の回答権限を付与（POメンバー除外、通知は必要な人のみ）
+    grantFormResponsePermissionToEstimateMembers(formFileId);
+    logInfo("Form response permissions granted to estimate members", {
+      formUrl,
     });
 
     // 結果スプシに見積もりメンバー全員の閲覧権限を付与
