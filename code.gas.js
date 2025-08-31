@@ -552,7 +552,7 @@ const grantFormResponsePermissionToEstimateMembers = (formId) => {
     try {
       // 見積もりが必要なメンバーかどうかを判定
       const member = members.find((m) => m.email === email);
-      const needsEstimate = member && member.responseRequired === "必要";
+      const needsEstimate = member && member.responseRequired !== "不要";
 
       const permission = {
         role: "reader",
