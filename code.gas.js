@@ -734,6 +734,17 @@ const createEstimateFromTemplates = (deadlineDate) => {
     midUrl,
   });
 
+  // Slack メッセージを生成
+  const members = getEstimateRequiredMembers();
+  const mentionList = members
+    .filter((m) => m.responseRequired !== "不要")
+    .map((m) => m.slackMention)
+    .join(" ");
+
+  const requestSlackMessage = `${mentionList}\n\n${deadlineDate} の非同期ポーカーです。\n締切を${deadlineDate} 16:00 に設定しています。\n\nお手数ですが、[こちら](${formUrl})からご回答のほどよろしくお願いいたします。`;
+
+  const completionSlackMessage = `ご回答ありがとうございます。\n\n結果を[こちら](${resultUrl})にまとめましたので、ご確認のほどよろしくお願いいたします。\n特に violation がでた部分については、再見積もりとなりますので、次回の見積もりのためにご参考ください。`;
+
   // 見積もり履歴テーブルに行を追加
   addEstimateHistoryTopRow({
     date: deadlineDate,
@@ -743,6 +754,8 @@ const createEstimateFromTemplates = (deadlineDate) => {
     formUrl: formUrl,
     resultText: `${titlePrefix}結果`,
     resultUrl: resultUrl,
+    requestSlackMessage,
+    completionSlackMessage,
   });
 
   try {
@@ -889,6 +902,8 @@ tests.push({
       formUrl: "https://www.google.com/",
       resultText: "test 結果スプシ",
       resultUrl: "https://www.google.com/",
+      requestSlackMessage: "test request",
+      completionSlackMessage: "test completion",
     });
     return true;
   },
@@ -897,7 +912,8 @@ tests.push({
 // 見積もり必要_メンバー: 列存在（ローダが投げなければOK）
 tests.push({
   name: "estimate_required_members:columns",
-  failMessage: "ヘッダー「表示名」「メールアドレス」「回答要否」が存在しません",
+  failMessage:
+    "ヘッダー「表示名」「メールアドレス」「回答要否」「Slack メンション名」が存在しません",
   check: () => {
     getEstimateRequiredMembers();
     return true;
@@ -997,10 +1013,11 @@ const estimateRequiredMembersTable = {
     displayName: "表示名",
     email: "メールアドレス",
     responseRequired: "回答要否",
+    slackMention: "Slack メンション名",
   },
 };
 
-/** @typedef {{ displayName: string, email: string, responseRequired: "不要" | "必要" }} EstimateRequiredMemberRow */
+/** @typedef {{ displayName: string, email: string, responseRequired: "不要" | "必要", slackMention: string }} EstimateRequiredMemberRow */
 /** @type {Array<EstimateRequiredMemberRow>|undefined} */
 let _estimateRequiredMembersCache = undefined;
 
@@ -1033,9 +1050,17 @@ const getEstimateRequiredMembers = () => {
   const responseRequiredIdx = header.indexOf(
     estimateRequiredMembersTable.headers.responseRequired
   );
-  if (displayNameIdx === -1 || emailIdx === -1 || responseRequiredIdx === -1) {
+  const slackMentionIdx = header.indexOf(
+    estimateRequiredMembersTable.headers.slackMention
+  );
+  if (
+    displayNameIdx === -1 ||
+    emailIdx === -1 ||
+    responseRequiredIdx === -1 ||
+    slackMentionIdx === -1
+  ) {
     throw new Error(
-      `ヘッダー未検出: 必要な列名「${estimateRequiredMembersTable.headers.displayName}」「${estimateRequiredMembersTable.headers.email}」「${estimateRequiredMembersTable.headers.responseRequired}」`
+      `ヘッダー未検出: 必要な列名「${estimateRequiredMembersTable.headers.displayName}」「${estimateRequiredMembersTable.headers.email}」「${estimateRequiredMembersTable.headers.responseRequired}」「${estimateRequiredMembersTable.headers.slackMention}」`
     );
   }
 
@@ -1046,6 +1071,7 @@ const getEstimateRequiredMembers = () => {
     const displayName = String(row[displayNameIdx] ?? "").trim();
     const email = String(row[emailIdx] ?? "").trim();
     const responseRequired = String(row[responseRequiredIdx] ?? "").trim();
+    const slackMention = String(row[slackMentionIdx] ?? "").trim();
 
     if (!displayName && !email) {
       continue;
@@ -1066,6 +1092,7 @@ const getEstimateRequiredMembers = () => {
       displayName,
       email,
       responseRequired: /** @type {"不要" | "必要"} */ (responseRequired),
+      slackMention,
     });
   }
 
@@ -2072,6 +2099,8 @@ const estimateHistoryTable = {
     mid: "中間スプシ",
     form: "Google Form",
     result: "結果スプシ",
+    requestSlack: "依頼 Slack メッセージ",
+    completionSlack: "完了 Slack メッセージ",
   },
 };
 
@@ -2091,7 +2120,7 @@ const setCellLink = (cell, text, url) => {
 /**
  * テーブルの「データ先頭」（ヘッダー直下）に 1 行挿入し、値を書き込む。
  * - headerRowCount は 1 と仮定（現行UIの標準）
- * @param {{ date: string, midText: string, midUrl: string, formText: string, formUrl: string, resultText: string, resultUrl: string }} row
+ * @param {{ date: string, midText: string, midUrl: string, formText: string, formUrl: string, resultText: string, resultUrl: string, requestSlackMessage: string, completionSlackMessage: string }} row
  */
 const addEstimateHistoryTopRow = (row) => {
   const meta = getTableMetaByName(estimateHistoryTable.tableName);
@@ -2141,6 +2170,10 @@ const addEstimateHistoryTopRow = (row) => {
   const idxMid = idxByName(estimateHistoryTable.headers.mid);
   const idxForm = idxByName(estimateHistoryTable.headers.form);
   const idxResult = idxByName(estimateHistoryTable.headers.result);
+  const idxRequestSlack = idxByName(estimateHistoryTable.headers.requestSlack);
+  const idxCompletionSlack = idxByName(
+    estimateHistoryTable.headers.completionSlack
+  );
 
   /** @type {string[]} */
   const valuesRow = Array(colCount).fill("");
@@ -2149,6 +2182,8 @@ const addEstimateHistoryTopRow = (row) => {
   valuesRow[idxMid] = row.midText;
   valuesRow[idxForm] = row.formText;
   valuesRow[idxResult] = row.resultText;
+  valuesRow[idxRequestSlack] = row.requestSlackMessage;
+  valuesRow[idxCompletionSlack] = row.completionSlackMessage;
 
   // 1) データ先頭に 1 行分のスペースを挿入（テーブル幅に限定）
   // 2) 直後にその行に値を書き込む
