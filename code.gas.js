@@ -745,26 +745,26 @@ const createEstimateFromTemplates = (deadlineDate) => {
   const requestSlackMessage = {
     elements: [
       {
-        type: 'plain',
+        type: "plain",
         text:
           `${mentionList}\n\n${deadlineDate} の非同期ポーカーです。\n` +
           `締切を${deadlineDate} 16:00 に設定しています。\n\nお手数ですが、`,
       },
-      { type: 'link', text: 'こちら', url: formUrl },
-      { type: 'plain', text: 'からご回答のほどよろしくお願いいたします。' },
+      { type: "link", text: "こちら", url: formUrl },
+      { type: "plain", text: "からご回答のほどよろしくお願いいたします。" },
     ],
   };
 
   /** @type {RichText} */
   const completionSlackMessage = {
     elements: [
-      { type: 'plain', text: 'ご回答ありがとうございます。\n\n結果を' },
-      { type: 'link', text: 'こちら', url: resultUrl },
+      { type: "plain", text: "ご回答ありがとうございます。\n\n結果を" },
+      { type: "link", text: "こちら", url: resultUrl },
       {
-        type: 'plain',
+        type: "plain",
         text:
-          'にまとめましたので、ご確認のほどよろしくお願いいたします。\n' +
-          '特に violation がでた部分については、再見積もりとなりますので、次回の見積もりのためにご参考ください。',
+          "にまとめましたので、ご確認のほどよろしくお願いいたします。\n" +
+          "特に violation がでた部分については、再見積もりとなりますので、次回の見積もりのためにご参考ください。",
       },
     ],
   };
@@ -927,10 +927,10 @@ tests.push({
       resultText: "test 結果スプシ",
       resultUrl: "https://www.google.com/",
       requestSlackMessage: {
-        elements: [{ type: 'plain', text: 'test request' }],
+        elements: [{ type: "plain", text: "test request" }],
       },
       completionSlackMessage: {
-        elements: [{ type: 'plain', text: 'test completion' }],
+        elements: [{ type: "plain", text: "test completion" }],
       },
     });
     return true;
@@ -2158,7 +2158,7 @@ const setCellLink = (cell, text, url) => {
  * @returns {string}
  */
 const richTextToString = (richText) =>
-  richText.elements.map((p) => p.text).join('');
+  richText.elements.map((p) => p.text).join("");
 
 /**
  * RichText を updateCells 用のセル値に変換
@@ -2170,7 +2170,7 @@ const richTextToCell = (richText) => {
   const runs = [];
   let index = 0;
   for (const part of richText.elements) {
-    if (part.type === 'link') {
+    if (part.type === "link") {
       runs.push({ startIndex: index, format: { link: { uri: part.url } } });
       runs.push({ startIndex: index + part.text.length });
     }
@@ -2190,13 +2190,13 @@ const richTextToCell = (richText) => {
  * @param {string} url
  */
 const buildLinkCell = (text, url) =>
-  richTextToCell({ elements: [{ type: 'link', text, url }] });
+  richTextToCell({ elements: [{ type: "link", text, url }] });
 
 /**
  * テーブルの「データ先頭」（ヘッダー直下）に 1 行挿入し、値を書き込む。
  * - headerRowCount は 1 と仮定（現行UIの標準）
  * @param {{ date: string, midText: string, midUrl: string, formText: string, formUrl: string, resultText: string, resultUrl: string, requestSlackMessage: RichText, completionSlackMessage: RichText }} row
-*/
+ */
 const addEstimateHistoryTopRow = (row) => {
   const meta = getTableMetaByName(estimateHistoryTable.tableName);
   const gr = meta.range; // 0-based, end* は exclusive
