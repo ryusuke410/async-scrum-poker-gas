@@ -7,15 +7,20 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint:md": "markdownlint \"**/*.md\""
+    "lint:md": "markdownlint \"**/*.md\"",
+    "prepare": "test \"$CI\" = true || lefthook install"
   },
   "keywords": [],
   "author": "",
   "license": "MIT",
   "packageManager": "pnpm@10.11.1",
+  "dependencies": {
+    "lefthook": "^1.7.9"
+  },
   "devDependencies": {
     "@types/google-apps-script": "^2.0.0",
     "googleapis": "^159.0.0",
+    "lefthook": "^1.7.9",
     "markdownlint-cli": "^0.45.0",
     "prettier": "^3.6.2",
     "typescript": "^5.9.2"
