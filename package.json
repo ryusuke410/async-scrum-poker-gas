@@ -8,12 +8,15 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint:md": "markdownlint \"**/*.md\"",
-    "prepare": "lefthook install"
+    "prepare": "test \"$CI\" = true || lefthook install"
   },
   "keywords": [],
   "author": "",
   "license": "MIT",
   "packageManager": "pnpm@10.11.1",
+  "dependencies": {
+    "lefthook": "^1.7.9"
+  },
   "devDependencies": {
     "@types/google-apps-script": "^2.0.0",
     "googleapis": "^159.0.0",
