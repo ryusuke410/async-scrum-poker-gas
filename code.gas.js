@@ -1504,7 +1504,7 @@ const updateMembersTable = (spreadsheetUrl) => {
   membersResponseNecessities, ${membersTable.tableName}[${membersTable.headers.responseRequired}],
   membersEmails, ${membersTable.tableName}[${membersTable.headers.email}],
   estimatesEmails, ${formResponsesTable.tableName}[${formResponsesTable.headers.email}],
-  assigneeEmails, FILTER(membersEmails, membersResponseNecessities<>"不要"),
+  assigneeEmails, FILTER(membersEmails, membersResponseNecessities="必要"),
   MAP(
     membersEmails,
     LAMBDA(
