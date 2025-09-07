@@ -741,9 +741,33 @@ const createEstimateFromTemplates = (deadlineDate) => {
     .map((m) => m.slackMention)
     .join(" ");
 
-  const requestSlackMessage = `${mentionList}\n\n${deadlineDate} の非同期ポーカーです。\n締切を${deadlineDate} 16:00 に設定しています。\n\nお手数ですが、[こちら](${formUrl})からご回答のほどよろしくお願いいたします。`;
+  /** @type {RichText} */
+  const requestSlackMessage = {
+    elements: [
+      {
+        type: "plain",
+        text:
+          `${mentionList}\n\n${deadlineDate} の非同期ポーカーです。\n` +
+          `締切を${deadlineDate} 16:00 に設定しています。\n\nお手数ですが、`,
+      },
+      { type: "link", text: "こちら", url: formUrl },
+      { type: "plain", text: "からご回答のほどよろしくお願いいたします。" },
+    ],
+  };
 
-  const completionSlackMessage = `ご回答ありがとうございます。\n\n結果を[こちら](${resultUrl})にまとめましたので、ご確認のほどよろしくお願いいたします。\n特に violation がでた部分については、再見積もりとなりますので、次回の見積もりのためにご参考ください。`;
+  /** @type {RichText} */
+  const completionSlackMessage = {
+    elements: [
+      { type: "plain", text: "ご回答ありがとうございます。\n\n結果を" },
+      { type: "link", text: "こちら", url: resultUrl },
+      {
+        type: "plain",
+        text:
+          "にまとめましたので、ご確認のほどよろしくお願いいたします。\n" +
+          "特に violation がでた部分については、再見積もりとなりますので、次回の見積もりのためにご参考ください。",
+      },
+    ],
+  };
 
   // 見積もり履歴テーブルに行を追加
   addEstimateHistoryTopRow({
@@ -902,8 +926,12 @@ tests.push({
       formUrl: "https://www.google.com/",
       resultText: "test 結果スプシ",
       resultUrl: "https://www.google.com/",
-      requestSlackMessage: "test request",
-      completionSlackMessage: "test completion",
+      requestSlackMessage: {
+        elements: [{ type: "plain", text: "test request" }],
+      },
+      completionSlackMessage: {
+        elements: [{ type: "plain", text: "test completion" }],
+      },
     });
     return true;
   },
@@ -2118,9 +2146,56 @@ const setCellLink = (cell, text, url) => {
 };
 
 /**
+ * リッチテキストの要素
+ * @typedef {{type: 'plain', text: string} | {type: 'link', text: string, url: string}} RichTextElement
+ */
+
+/** @typedef {{ elements: Array<RichTextElement> }} RichText */
+
+/**
+ * RichText を単純文字列に変換
+ * @param {RichText} richText
+ * @returns {string}
+ */
+const richTextToString = (richText) =>
+  richText.elements.map((p) => p.text).join("");
+
+/**
+ * RichText を updateCells 用のセル値に変換
+ * @param {RichText} richText
+ */
+const richTextToCell = (richText) => {
+  const text = richTextToString(richText);
+  /** @type {Array<{startIndex: number, format?: {link?: {uri: string}}}>} */
+  const runs = [];
+  let index = 0;
+  for (const part of richText.elements) {
+    if (part.type === "link") {
+      runs.push({ startIndex: index, format: { link: { uri: part.url } } });
+      runs.push({ startIndex: index + part.text.length });
+    }
+    index += part.text.length;
+  }
+  /** @type {{userEnteredValue: {stringValue: string}, textFormatRuns?: typeof runs}} */
+  const cell = { userEnteredValue: { stringValue: text } };
+  if (runs.length) {
+    cell.textFormatRuns = runs;
+  }
+  return cell;
+};
+
+/**
+ * 文字列全体がリンクの RichText セルを構築
+ * @param {string} text
+ * @param {string} url
+ */
+const buildLinkCell = (text, url) =>
+  richTextToCell({ elements: [{ type: "link", text, url }] });
+
+/**
  * テーブルの「データ先頭」（ヘッダー直下）に 1 行挿入し、値を書き込む。
  * - headerRowCount は 1 と仮定（現行UIの標準）
- * @param {{ date: string, midText: string, midUrl: string, formText: string, formUrl: string, resultText: string, resultUrl: string, requestSlackMessage: string, completionSlackMessage: string }} row
+ * @param {{ date: string, midText: string, midUrl: string, formText: string, formUrl: string, resultText: string, resultUrl: string, requestSlackMessage: RichText, completionSlackMessage: RichText }} row
  */
 const addEstimateHistoryTopRow = (row) => {
   const meta = getTableMetaByName(estimateHistoryTable.tableName);
@@ -2182,8 +2257,8 @@ const addEstimateHistoryTopRow = (row) => {
   valuesRow[idxMid] = row.midText;
   valuesRow[idxForm] = row.formText;
   valuesRow[idxResult] = row.resultText;
-  valuesRow[idxRequestSlack] = row.requestSlackMessage;
-  valuesRow[idxCompletionSlack] = row.completionSlackMessage;
+  valuesRow[idxRequestSlack] = richTextToString(row.requestSlackMessage);
+  valuesRow[idxCompletionSlack] = richTextToString(row.completionSlackMessage);
 
   // 1) データ先頭に 1 行分のスペースを挿入（テーブル幅に限定）
   // 2) 直後にその行に値を書き込む
@@ -2229,14 +2304,6 @@ const addEstimateHistoryTopRow = (row) => {
   );
 
   // 3) セル自体にリンクを付与（HYPERLINK 式は使わない）
-  const buildLinkCell = /** @param {any} text @param {string} url */ (
-    text,
-    url
-  ) => ({
-    userEnteredValue: { stringValue: text },
-    textFormatRuns: [{ startIndex: 0, format: { link: { uri: url } } }],
-  });
-
   const linkReq = {
     requests: [
       {
@@ -2275,6 +2342,32 @@ const addEstimateHistoryTopRow = (row) => {
             endColumnIndex: startCol0 + idxResult + 1,
           },
           rows: [{ values: [buildLinkCell(row.resultText, row.resultUrl)] }],
+          fields: "userEnteredValue,textFormatRuns",
+        },
+      },
+      {
+        updateCells: {
+          range: {
+            sheetId,
+            startRowIndex: dataTop0,
+            endRowIndex: dataTop0 + 1,
+            startColumnIndex: startCol0 + idxRequestSlack,
+            endColumnIndex: startCol0 + idxRequestSlack + 1,
+          },
+          rows: [{ values: [richTextToCell(row.requestSlackMessage)] }],
+          fields: "userEnteredValue,textFormatRuns",
+        },
+      },
+      {
+        updateCells: {
+          range: {
+            sheetId,
+            startRowIndex: dataTop0,
+            endRowIndex: dataTop0 + 1,
+            startColumnIndex: startCol0 + idxCompletionSlack,
+            endColumnIndex: startCol0 + idxCompletionSlack + 1,
+          },
+          rows: [{ values: [richTextToCell(row.completionSlackMessage)] }],
           fields: "userEnteredValue,textFormatRuns",
         },
       },
