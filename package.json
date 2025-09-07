@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint:md": "markdownlint \"**/*.md\""
   },
   "keywords": [],
   "author": "",
@@ -13,6 +16,8 @@
   "devDependencies": {
     "@types/google-apps-script": "^2.0.0",
     "googleapis": "^159.0.0",
+    "markdownlint-cli": "^0.45.0",
+    "prettier": "^3.6.2",
     "typescript": "^5.9.2"
   }
 }
