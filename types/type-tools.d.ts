@@ -1,1 +1,1 @@
-type RequiredToBeDefined<T> = { [P in keyof T]-?: NonNullable<T[P]>; }
+type RequiredToBeDefined<T> = { [P in keyof T]-?: NonNullable<T[P]> };
