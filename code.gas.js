@@ -926,8 +926,12 @@ tests.push({
       formUrl: "https://www.google.com/",
       resultText: "test 結果スプシ",
       resultUrl: "https://www.google.com/",
-      requestSlackMessage: [{ type: 'plain', text: 'test request' }],
-      completionSlackMessage: [{ type: 'plain', text: 'test completion' }],
+      requestSlackMessage: {
+        elements: [{ type: 'plain', text: 'test request' }],
+      },
+      completionSlackMessage: {
+        elements: [{ type: 'plain', text: 'test completion' }],
+      },
     });
     return true;
   },
