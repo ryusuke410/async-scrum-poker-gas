@@ -751,7 +751,7 @@ const createEstimateFromTemplates = (deadlineDate) => {
     const resultFileId = extractSpreadsheetIdFromUrl(resultUrl);
 
     grantEditPermissionToPoGroup(midFileId, "中間スプシ");
-    // Note: POグループにはフォームの編集権限ではなく回答権限を付与
+    grantEditPermissionToPoGroup(formFileId, "Google Form");
     grantEditPermissionToPoGroup(resultFileId, "結果スプシ");
 
     logInfo("PO group permissions granted successfully", {
