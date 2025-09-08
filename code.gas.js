@@ -2170,9 +2170,12 @@ const richTextToCell = (richText) => {
   const runs = [];
   let index = 0;
   for (const part of richText.elements) {
-    if (part.type === "link") {
+    if (part.type === "link" && part.text.length > 0) {
       runs.push({ startIndex: index, format: { link: { uri: part.url } } });
-      runs.push({ startIndex: index + part.text.length });
+      const endIndex = index + part.text.length;
+      if (endIndex < text.length) {
+        runs.push({ startIndex: endIndex });
+      }
     }
     index += part.text.length;
   }
