@@ -406,7 +406,7 @@ const grantEditPermissionToPoGroup = (fileId, fileType) => {
       };
 
       Drive.Permissions.create(permission, fileId, {
-        sendNotificationEmails: false,
+        sendNotificationEmail: false,
       });
 
       logInfo(
@@ -464,7 +464,7 @@ const grantViewPermissionToEstimateMembers = (fileId, fileType) => {
       };
 
       Drive.Permissions.create(permission, fileId, {
-        sendNotificationEmails: false,
+        sendNotificationEmail: false,
       });
 
       logInfo(
