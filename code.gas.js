@@ -709,8 +709,11 @@ const createEstimateFromTemplates = (deadlineDate) => {
   const form = getFormFromUrl(formUrl);
   form.setAcceptingResponses(true);
 
+  const formResponseUrl = form.getPublishedUrl();
+
   logInfo("Form accepting responses enabled", {
     formUrl,
+    formResponseUrl,
   });
 
   // Form_Responses テーブルにダミー行を追加
@@ -750,7 +753,7 @@ const createEstimateFromTemplates = (deadlineDate) => {
           `${mentionList}\n\n${deadlineDate} の非同期ポーカーです。\n` +
           `締切を${deadlineDate} 16:00 に設定しています。\n\nお手数ですが、`,
       },
-      { type: "link", text: "こちら", url: formUrl },
+      { type: "link", text: "こちら", url: formResponseUrl },
       { type: "plain", text: "からご回答のほどよろしくお願いいたします。" },
     ],
   };
@@ -775,7 +778,7 @@ const createEstimateFromTemplates = (deadlineDate) => {
     midText: titlePrefix,
     midUrl: midUrl,
     formText: titlePrefix,
-    formUrl: formUrl,
+    formUrl: formResponseUrl,
     resultText: `${titlePrefix}結果`,
     resultUrl: resultUrl,
     requestSlackMessage,
