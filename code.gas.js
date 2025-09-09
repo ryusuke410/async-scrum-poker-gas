@@ -3020,12 +3020,12 @@ const getEstimateDebugMap = () => {
 };
 
 /**
- * デバッグ用: テーブル「見積もり必要_デバッグ」を読み込み console.log する。
+ * デバッグ用: テーブル「見積もり必要_デバッグ」を読み込み logInfo する。
  * 使用例: runDebugEstimateDebugTable()
  */
 const runDebugEstimateDebugTable = () =>
   safeMain("runDebugEstimateDebugTable", () => {
     const map = getEstimateDebugMap();
-    console.log(map);
+    logInfo("Estimate debug map", map);
     return map;
   });
