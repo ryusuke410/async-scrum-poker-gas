@@ -2942,3 +2942,90 @@ const runDebugFormSetup = () =>
       issueCount,
     };
   });
+
+/** ===== 追加: 見積もり必要_デバッグ ローダ =================== */
+const estimateDebugTable = {
+  tableName: "見積もり必要_デバッグ",
+  headers: {
+    key: "key",
+    value: "value",
+  },
+};
+
+/** @typedef {Record<string,string>} EstimateDebugMap */
+/** @type {EstimateDebugMap|undefined} */
+let _estimateDebugCache = undefined;
+
+/**
+ * 見積もり必要_デバッグ（テーブル）を読み込み、key-value マップを返す。
+ * @returns {EstimateDebugMap}
+ */
+const getEstimateDebugMap = () => {
+  if (_estimateDebugCache) {
+    return _estimateDebugCache;
+  }
+  const meta = getTableMetaByName(estimateDebugTable.tableName);
+  const a1 = gridRangeToA1(meta.range, meta.sheetTitle);
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const spreadsheetId = ss.getId();
+  if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+    throw new Error(
+      "Advanced Sheets API is not enabled. Please enable it in the Google Apps Script project."
+    );
+  }
+  const vr = Sheets.Spreadsheets.Values.get(spreadsheetId, a1);
+  const values = vr.values || [];
+  if (!values.length || !values[0]) {
+    throw new Error("テーブルが空です: 見積もり必要_デバッグ");
+  }
+
+  const header = values[0].map((v) => String(v).trim());
+  const keyIdx = header.indexOf(estimateDebugTable.headers.key);
+  const valueIdx = header.indexOf(estimateDebugTable.headers.value);
+  if (keyIdx === -1 || valueIdx === -1) {
+    throw new Error(
+      `ヘッダー未検出: 必要な列名「${estimateDebugTable.headers.key}」「${estimateDebugTable.headers.value}」`
+    );
+  }
+
+  /** @type {EstimateDebugMap} */
+  const map = {};
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i] || [];
+    const k = String(row[keyIdx] ?? "").trim();
+    const v = String(row[valueIdx] ?? "").trim();
+    if (!k) {
+      continue;
+    }
+    if (Object.prototype.hasOwnProperty.call(map, k) && map[k] !== v) {
+      logWarn("duplicate key in 見積もり必要_デバッグ", {
+        row: i + 1,
+        key: k,
+        prev: map[k],
+        next: v,
+      });
+      continue;
+    }
+    map[k] = v;
+  }
+
+  _estimateDebugCache = map;
+  logInfo("Loaded table 見積もり必要_デバッグ", {
+    a1,
+    countRows: values.length - 1,
+    keys: Object.keys(map).length,
+    tableId: meta.tableId,
+  });
+  return map;
+};
+
+/**
+ * デバッグ用: テーブル「見積もり必要_デバッグ」を読み込み console.log する。
+ * 使用例: runDebugEstimateDebugTable()
+ */
+const runDebugEstimateDebugTable = () =>
+  safeMain("runDebugEstimateDebugTable", () => {
+    const map = getEstimateDebugMap();
+    console.log(map);
+    return map;
+  });
