@@ -3029,3 +3029,67 @@ const runDebugEstimateDebugTable = () =>
     console.log(map);
     return map;
   });
+
+/**
+ * 指定された Google Form の全 Item をログ出力する。
+ * @param {string} formUrl - Google Form の URL
+ * @returns {Array<{index:number,type:string,title:string,choices?:string[]}>}
+ */
+const debugListFormItems = (formUrl) => {
+  const form = getFormFromUrl(formUrl);
+  const items = form.getItems();
+  /** @type {Array<{index:number,type:string,title:string,choices?:string[]}>} */
+  const out = [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const type = item.getType();
+    /** @type {{index:number,type:string,title:string,choices?:string[]}} */
+    const info = {
+      index: i,
+      type: String(type),
+      title: item.getTitle(),
+    };
+    if (type === FormApp.ItemType.MULTIPLE_CHOICE) {
+      info.choices = item
+        .asMultipleChoiceItem()
+        .getChoices()
+        .map(
+          /** @param {GoogleAppsScript.Forms.Choice} c */ (c) => c.getValue()
+        );
+    } else if (type === FormApp.ItemType.CHECKBOX) {
+      info.choices = item
+        .asCheckboxItem()
+        .getChoices()
+        .map(
+          /** @param {GoogleAppsScript.Forms.Choice} c */ (c) => c.getValue()
+        );
+    } else if (type === FormApp.ItemType.LIST) {
+      info.choices = item
+        .asListItem()
+        .getChoices()
+        .map(
+          /** @param {GoogleAppsScript.Forms.Choice} c */ (c) => c.getValue()
+        );
+    }
+    out.push(info);
+    logInfo("Form item", info);
+  }
+  return out;
+};
+
+/**
+ * デバッグ用: 見積もり必要_デバッグテーブルの google-form-url の Form Item を一覧ログ出力。
+ * 使用例: runDebugFormItems()
+ */
+const runDebugFormItems = () =>
+  safeMain("runDebugFormItems", () => {
+    const map = getEstimateDebugMap();
+    const formUrl = map["google-form-url"];
+    if (!formUrl) {
+      throw new Error(
+        'key "google-form-url" not found in 見積もり必要_デバッグ'
+      );
+    }
+    logInfo("Logging form items", { formUrl });
+    return debugListFormItems(formUrl);
+  });
