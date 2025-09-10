@@ -2414,6 +2414,9 @@ const getEstimateIssueList = () => {
   const rows = [];
   for (let i = 1; i < values.length; i++) {
     const row = values[i] || [];
+    if (row.every((cell) => String(cell).trim() === "")) {
+      continue;
+    }
     const title = String(row[titleIdx] ?? "").trim();
     const url = String(row[urlIdx] ?? "").trim();
 
