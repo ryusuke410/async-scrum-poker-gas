@@ -199,6 +199,65 @@ const gridRangeToA1 = (gr, sheetTitle) => {
 };
 
 /**
+ * テーブルのヘッダー情報を取得し、列名からインデックスを検索する関数を返す。
+ * 既に値配列を持っている場合はそれを利用し、未指定の場合はヘッダー行のみを読み込む。
+ * @param {TableMeta} meta
+ * @param {string[][]} [values]
+ */
+const getTableHeaderInfo = (meta, values) => {
+  const gr = meta.range;
+  if (!gr) {
+    throw new Error(`Table range is undefined for ${meta.tableId}`);
+  }
+  const sheetId = meta.sheetId;
+  const sheetTitle = meta.sheetTitle;
+  const dataTop0 = (gr.startRowIndex || 0) + 1; // header1 前提 -> データ先頭
+  const startCol0 = gr.startColumnIndex || 0;
+  const endCol0 = gr.endColumnIndex || startCol0 + 1;
+
+  /** @type {string[]} */
+  let headerVals = [];
+  if (values && values[0]) {
+    headerVals = values[0].map((v) => String(v).trim());
+  } else {
+    const headerA1 = gridRangeToA1(
+      {
+        sheetId,
+        startRowIndex: dataTop0 - 1,
+        endRowIndex: dataTop0,
+        startColumnIndex: startCol0,
+        endColumnIndex: endCol0,
+      },
+      sheetTitle
+    );
+    if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
+      throw new Error("Sheets.Spreadsheets is not available");
+    }
+    headerVals =
+      (Sheets.Spreadsheets.Values.get(
+        SpreadsheetApp.getActiveSpreadsheet().getId(),
+        headerA1
+      ).values || [[]])[0]?.map((v) => String(v).trim()) || [];
+  }
+  const idxByName = /** @param {string} name */ (name) => {
+    const idx = headerVals.indexOf(name);
+    if (idx === -1) {
+      throw new Error(`ヘッダー未検出: ${name}`);
+    }
+    return idx;
+  };
+  return {
+    sheetId,
+    sheetTitle,
+    startCol0,
+    endCol0,
+    dataTop0,
+    headerVals,
+    idxByName,
+  };
+};
+
+/**
  * 見積もり必要_テンプレート（テーブル）を読み込み、固定キーのオブジェクトを返す。
  * @returns {EstimateTemplateLinks}
  */
@@ -222,15 +281,9 @@ const getEstimateTemplateLinks = () => {
     throw new Error("テーブルが空です");
   }
 
-  // ヘッダー行検出
-  const header = values[0].map((v) => String(v).trim());
-  const nameIdx = header.indexOf(estimateTemplatesTable.headers.name);
-  const linkIdx = header.indexOf(estimateTemplatesTable.headers.link);
-  if (nameIdx === -1 || linkIdx === -1) {
-    throw new Error(
-      `ヘッダー未検出: 必要な列名「${estimateTemplatesTable.headers.name}」「${estimateTemplatesTable.headers.link}」`
-    );
-  }
+  const { idxByName } = getTableHeaderInfo(meta, values);
+  const nameIdx = idxByName(estimateTemplatesTable.headers.name);
+  const linkIdx = idxByName(estimateTemplatesTable.headers.link);
 
   /** @type {Record<string,string>} */
   const tempMap = {};
@@ -994,14 +1047,9 @@ const getPoGroupMembers = () => {
     throw new Error("テーブルが空です: POグループメンバー");
   }
 
-  const header = values[0].map((v) => String(v).trim());
-  const dnIdx = header.indexOf(poGroupMembersTable.headers.displayName);
-  const emIdx = header.indexOf(poGroupMembersTable.headers.email);
-  if (dnIdx === -1 || emIdx === -1) {
-    throw new Error(
-      `ヘッダー未検出: 必要な列名「${poGroupMembersTable.headers.displayName}」「${poGroupMembersTable.headers.email}」`
-    );
-  }
+  const { idxByName } = getTableHeaderInfo(meta, values);
+  const dnIdx = idxByName(poGroupMembersTable.headers.displayName);
+  const emIdx = idxByName(poGroupMembersTable.headers.email);
 
   /** @type {string[]} */
   const displayNames = [];
@@ -1073,27 +1121,17 @@ const getEstimateRequiredMembers = () => {
     throw new Error("テーブルが空です: 見積もり必要_メンバー");
   }
 
-  const header = values[0].map((v) => String(v).trim());
-  const displayNameIdx = header.indexOf(
+  const { idxByName } = getTableHeaderInfo(meta, values);
+  const displayNameIdx = idxByName(
     estimateRequiredMembersTable.headers.displayName
   );
-  const emailIdx = header.indexOf(estimateRequiredMembersTable.headers.email);
-  const responseRequiredIdx = header.indexOf(
+  const emailIdx = idxByName(estimateRequiredMembersTable.headers.email);
+  const responseRequiredIdx = idxByName(
     estimateRequiredMembersTable.headers.responseRequired
   );
-  const slackMentionIdx = header.indexOf(
+  const slackMentionIdx = idxByName(
     estimateRequiredMembersTable.headers.slackMention
   );
-  if (
-    displayNameIdx === -1 ||
-    emailIdx === -1 ||
-    responseRequiredIdx === -1 ||
-    slackMentionIdx === -1
-  ) {
-    throw new Error(
-      `ヘッダー未検出: 必要な列名「${estimateRequiredMembersTable.headers.displayName}」「${estimateRequiredMembersTable.headers.email}」「${estimateRequiredMembersTable.headers.responseRequired}」「${estimateRequiredMembersTable.headers.slackMention}」`
-    );
-  }
 
   /** @type {Array<EstimateRequiredMemberRow>} */
   const rows = [];
@@ -1435,27 +1473,16 @@ const updateMembersTable = (spreadsheetUrl) => {
       throw new Error(`Table is empty: ${membersTable.tableName}`);
     }
 
-    const header = values[0].map((v) => String(v).trim());
-    logInfo("Members table headers", { header });
-
-    // ヘッダー位置を取得
-    const displayNameIdx = header.indexOf(membersTable.headers.displayName);
-    const emailIdx = header.indexOf(membersTable.headers.email);
-    const responseRequiredIdx = header.indexOf(
+    const { idxByName, headerVals } = getTableHeaderInfo(membersMeta, values);
+    logInfo("Members table headers", { header: headerVals });
+    const displayNameIdx = idxByName(membersTable.headers.displayName);
+    const emailIdx = idxByName(membersTable.headers.email);
+    const responseRequiredIdx = idxByName(
       membersTable.headers.responseRequired
     );
-    const responseStatusIdx = header.indexOf(
+    const responseStatusIdx = idxByName(
       membersTable.headers.responseStatus
     );
-
-    if (
-      displayNameIdx === -1 ||
-      emailIdx === -1 ||
-      responseRequiredIdx === -1 ||
-      responseStatusIdx === -1
-    ) {
-      throw new Error("Required headers not found in Members table");
-    }
 
     // データ行の開始位置を計算
     const dataStartRow = (membersMeta.range.startRowIndex || 0) + 1; // ヘッダーの次の行（0-based）
@@ -1736,37 +1763,24 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
       throw new Error(`Table is empty: ${resultSummaryTable.tableName}`);
     }
 
-    const header = values[0].map((v) => String(v).trim());
-    logInfo("ResultSummary table headers", { header });
-
-    // ヘッダー位置を取得
-    const idIdx = header.indexOf(resultSummaryTable.headers.id);
-    const estimateTargetIdx = header.indexOf(
+    const { idxByName, headerVals } = getTableHeaderInfo(
+      resultSummaryMeta,
+      values
+    );
+    logInfo("ResultSummary table headers", { header: headerVals });
+    const idIdx = idxByName(resultSummaryTable.headers.id);
+    const estimateTargetIdx = idxByName(
       resultSummaryTable.headers.estimateTarget
     );
-    const statusIdx = header.indexOf(resultSummaryTable.headers.status);
-    const averageIdx = header.indexOf(resultSummaryTable.headers.average);
-    const responseSummaryIdx = header.indexOf(
+    const statusIdx = idxByName(resultSummaryTable.headers.status);
+    const averageIdx = idxByName(resultSummaryTable.headers.average);
+    const responseSummaryIdx = idxByName(
       resultSummaryTable.headers.responseSummary
     );
-    const minIdx = header.indexOf(resultSummaryTable.headers.min);
-    const maxIdx = header.indexOf(resultSummaryTable.headers.max);
-    const minByIdx = header.indexOf(resultSummaryTable.headers.minBy);
-    const maxByIdx = header.indexOf(resultSummaryTable.headers.maxBy);
-
-    if (
-      idIdx === -1 ||
-      estimateTargetIdx === -1 ||
-      statusIdx === -1 ||
-      averageIdx === -1 ||
-      responseSummaryIdx === -1 ||
-      minIdx === -1 ||
-      maxIdx === -1 ||
-      minByIdx === -1 ||
-      maxByIdx === -1
-    ) {
-      throw new Error("Required headers not found in ResultSummary table");
-    }
+    const minIdx = idxByName(resultSummaryTable.headers.min);
+    const maxIdx = idxByName(resultSummaryTable.headers.max);
+    const minByIdx = idxByName(resultSummaryTable.headers.minBy);
+    const maxByIdx = idxByName(resultSummaryTable.headers.maxBy);
 
     // データ行の開始位置を計算
     const dataStartRow = (resultSummaryMeta.range.startRowIndex || 0) + 1; // ヘッダーの次の行（0-based）
@@ -2205,47 +2219,15 @@ const buildLinkCell = (text, url) =>
  */
 const addEstimateHistoryTopRow = (row) => {
   const meta = getTableMetaByName(estimateHistoryTable.tableName);
-  const gr = meta.range; // 0-based, end* は exclusive
-  if (!gr) {
-    throw new Error(
-      `Table range is undefined for ${estimateHistoryTable.tableName}`
-    );
-  }
-  const sheetId = meta.sheetId;
-  const sheetTitle = meta.sheetTitle;
-
-  const headerRow1 = (gr.startRowIndex || 0) + 1; // 1-based
-  const dataTop0 = (gr.startRowIndex || 0) + 1; // ヘッダー1行前提 → データ先頭(0-based)
-  const startCol0 = gr.startColumnIndex || 0;
-  const endCol0 = gr.endColumnIndex || startCol0 + 1;
+  const {
+    sheetId,
+    sheetTitle,
+    startCol0,
+    endCol0,
+    dataTop0,
+    idxByName,
+  } = getTableHeaderInfo(meta);
   const colCount = endCol0 - startCol0;
-
-  // ヘッダー取得（列位置を名前で合わせる）
-  const headerA1 = gridRangeToA1(
-    {
-      sheetId,
-      startRowIndex: headerRow1 - 1,
-      endRowIndex: headerRow1,
-      startColumnIndex: startCol0,
-      endColumnIndex: endCol0,
-    },
-    sheetTitle
-  );
-  if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
-    throw new Error("Sheets.Spreadsheets is not available");
-  }
-  const headerVals =
-    (Sheets.Spreadsheets.Values.get(
-      SpreadsheetApp.getActiveSpreadsheet().getId(),
-      headerA1
-    ).values || [[]])[0]?.map((v) => String(v).trim()) || [];
-  const idxByName = /** @param {string} name */ (name) => {
-    const idx = headerVals.indexOf(name);
-    if (idx === -1) {
-      throw new Error(`ヘッダー未検出: ${name}`);
-    }
-    return idx;
-  };
 
   const idxDate = idxByName(estimateHistoryTable.headers.date);
   const idxMid = idxByName(estimateHistoryTable.headers.mid);
@@ -2424,15 +2406,9 @@ const getEstimateIssueList = () => {
   if (!values.length || !values[0]) {
     throw new Error("テーブルが空です: 見積もり必要_課題リスト");
   }
-
-  const header = values[0].map((v) => String(v).trim());
-  const titleIdx = header.indexOf(estimateIssueListTable.headers.title);
-  const urlIdx = header.indexOf(estimateIssueListTable.headers.url);
-  if (titleIdx === -1 || urlIdx === -1) {
-    throw new Error(
-      `ヘッダー未検出: 必要な列名「${estimateIssueListTable.headers.title}」「${estimateIssueListTable.headers.url}」`
-    );
-  }
+  const { idxByName } = getTableHeaderInfo(meta, values);
+  const titleIdx = idxByName(estimateIssueListTable.headers.title);
+  const urlIdx = idxByName(estimateIssueListTable.headers.url);
 
   /** @type {Array<EstimateIssueRow>} */
   const rows = [];
@@ -2493,13 +2469,8 @@ const getEstimateDeadlines = () => {
     throw new Error("テーブルが空です: 見積もり必要_締切");
   }
 
-  const header = values[0].map((v) => String(v).trim());
-  const dueIdx = header.indexOf(estimateDeadlineTable.headers.dueDate);
-  if (dueIdx === -1) {
-    throw new Error(
-      `ヘッダー未検出: 必要な列名「${estimateDeadlineTable.headers.dueDate}」`
-    );
-  }
+  const { idxByName } = getTableHeaderInfo(meta, values);
+  const dueIdx = idxByName(estimateDeadlineTable.headers.dueDate);
 
   /** @type {Array<EstimateDeadlineRow>} */
   const rows = [];
@@ -2979,14 +2950,9 @@ const getEstimateDebugMap = () => {
     throw new Error("テーブルが空です: 見積もり必要_デバッグ");
   }
 
-  const header = values[0].map((v) => String(v).trim());
-  const keyIdx = header.indexOf(estimateDebugTable.headers.key);
-  const valueIdx = header.indexOf(estimateDebugTable.headers.value);
-  if (keyIdx === -1 || valueIdx === -1) {
-    throw new Error(
-      `ヘッダー未検出: 必要な列名「${estimateDebugTable.headers.key}」「${estimateDebugTable.headers.value}」`
-    );
-  }
+  const { idxByName } = getTableHeaderInfo(meta, values);
+  const keyIdx = idxByName(estimateDebugTable.headers.key);
+  const valueIdx = idxByName(estimateDebugTable.headers.value);
 
   /** @type {EstimateDebugMap} */
   const map = {};
