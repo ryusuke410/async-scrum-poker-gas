@@ -1892,8 +1892,8 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
         formResponsesTable.headers.email
       }],
   estimatesPoints, ${formResponsesTable.tableName}[E${index + 1}. 見積り値],
-  assigneeCount, COUNTIF(membersResponseNecessities, "<>不要"),
-  respondedAssigneeCount, SUM(MAP(membersResponseNecessities, membersEmails, LAMBDA(n, e, IF(AND(n<>"不要", COUNTIF(estimatesEmails, e)), 1, 0)))),
+  assigneeCount, COUNTIF(membersResponseNecessities, "必要"),
+  respondedAssigneeCount, SUM(MAP(membersResponseNecessities, membersEmails, LAMBDA(n, e, IF(AND(n="必要", COUNTIF(estimatesEmails, e)), 1, 0)))),
   respondedMemberCount, SUM(MAP(membersEmails, LAMBDA(e, IF(COUNTIF(estimatesEmails, e), 1, 0)))),
   IF(
     assigneeCount > respondedAssigneeCount,
