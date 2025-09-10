@@ -2601,107 +2601,6 @@ const runTestsCore = (input) => {
 
   return results;
 };
-
-/** ===== 便利関数 ======================================= */
-
-/** 個別テスト実行 */
-/**
- * @param {string} name
- */
-const runTestByName = (name) =>
-  safeMain("runTestByName", () => runTestsCore({ names: [name] }));
-
-/** 指定名の複数テストを実行 */
-/**
- * @param {string[]} names
- */
-const runTestsByNames = (names) =>
-  safeMain("runTestsByNames", () => runTestsCore({ names }));
-
-/** 個別テストの例（必要に応じて増やす/編集する） */
-const testSampleTrue = () => runTestByName("sample:true");
-const testSampleSum = () => runTestByName("sample:sum");
-
-/** 複数まとめて実行する例 */
-const testSampleCore = () => runTestsByNames(["sample:true", "sample:sum"]);
-
-/** 見積もり必要_テンプレート: 固定キーのテスト */
-const testTemplateRequiredKeys = () => runTestByName("template:required_keys");
-const testTemplateGoogleFormLink = () =>
-  runTestByName("template:google_form_link");
-const testTemplateMidSpreadsheetLink = () =>
-  runTestByName("template:mid_spreadsheet_link");
-const testTemplateResultSpreadsheetLink = () =>
-  runTestByName("template:result_spreadsheet_link");
-
-/** 見積もり必要_テンプレート: まとめて */
-const testTemplateCore = () =>
-  runTestsByNames([
-    "template:required_keys",
-    "template:google_form_link",
-    "template:mid_spreadsheet_link",
-    "template:result_spreadsheet_link",
-  ]);
-
-/** POグループメンバー: 列存在・非空 検証 */
-const testPoMembersColumns = () => runTestByName("po_members:columns");
-const testPoMembersNamesNonEmpty = () =>
-  runTestByName("po_members:nonempty:displayNames");
-const testPoMembersEmailsNonEmpty = () =>
-  runTestByName("po_members:nonempty:emails");
-
-/** まとめて */
-const testPoMembersCore = () =>
-  runTestsByNames([
-    "po_members:columns",
-    "po_members:nonempty:displayNames",
-    "po_members:nonempty:emails",
-  ]);
-
-/** 見積もり履歴: 行追加テスト */
-// 見積もり必要_締切: テスト実行ヘルパ
-const testEstimateDeadlineColumns = () =>
-  runTestByName("estimate_deadline:columns");
-const testEstimateDeadlineLength1 = () =>
-  runTestByName("estimate_deadline:length1");
-const testEstimateDeadlineCore = () =>
-  runTestsByNames(["estimate_deadline:columns", "estimate_deadline:length1"]);
-
-/** 見積もり履歴: 行追加テスト */
-const testEstimateHistoryAddRow = () =>
-  runTestByName("estimate_history:addRow");
-
-/** 見積もり必要_メンバー: テスト実行ヘルパ */
-const testEstimateRequiredMembersColumns = () =>
-  runTestByName("estimate_required_members:columns");
-
-/** 見積もり必要_課題リスト: テスト実行ヘルパ */
-const testEstimateIssueListColumns = () =>
-  runTestByName("estimate_issue_list:columns");
-
-/** コアテスト（書き込み等の副作用なし）*/
-const testCore = () =>
-  runTestsByNames([
-    "sample:true",
-    "sample:sum",
-    "template:required_keys",
-    "template:google_form_link",
-    "template:mid_spreadsheet_link",
-    "template:result_spreadsheet_link",
-    "po_members:columns",
-    "po_members:nonempty:displayNames",
-    "po_members:nonempty:emails",
-    "estimate_deadline:columns",
-    "estimate_deadline:length1",
-    "estimate_required_members:columns",
-    "estimate_issue_list:columns",
-  ]);
-
-/**
- * 追加の個別バンドル例:
- * const testCore = testByNames(["A","B","C"]);
- */
-
 /** ===== Google Form セクション操作機能 =================== */
 
 /**
@@ -2871,78 +2770,6 @@ const setupFormSections = (formUrl, title, issueList) => {
   });
 };
 
-/** ===== エントリポイント（実行対象の公開） ============= */
-
-/**
- * スプレッドシートが開かれたときに実行される関数
- * カスタムメニューを追加する
- */
-const onOpen = () => {
-  const ui = SpreadsheetApp.getUi();
-  ui.createMenu("拡張コマンド")
-    .addItem("新規 async 見積もり発行", "runCreateEstimate")
-    .addToUi();
-};
-
-/**
- * テンプレートから見積もりファイルセットを作成するエントリポイント
- * 締切日を使用してタイトルプレフィックスを自動生成
- * 使用例: runCreateEstimate()
- */
-const runCreateEstimate = () =>
-  safeMain("runCreateEstimate", () => {
-    const deadline = getEstimateDeadline();
-    const deadlineDate = deadline.dueDate;
-    createEstimateFromTemplates(deadlineDate);
-  });
-
-/**
- * デバッグ用: Google Formのテンプレートコピーと基本セットアップのみ実行
- * 使用例: runDebugFormSetup()
- */
-const runDebugFormSetup = () =>
-  safeMain("runDebugFormSetup", () => {
-    const deadline = getEstimateDeadline();
-    const deadlineDate = deadline.dueDate;
-    const titlePrefix = `${deadlineDate} async ポーカー`;
-
-    logInfo("Debug: Creating form from template", {
-      deadlineDate,
-      titlePrefix,
-    });
-
-    // テンプレートリンクを取得
-    const templates = getEstimateTemplateLinks();
-
-    // Google Formをコピー
-    const formUrl = copyFormFromUrl(templates.googleForm, titlePrefix);
-    logInfo("Debug: Form copied successfully", { formUrl });
-
-    // 見積もり課題の数を取得
-    const issueList = getEstimateIssueList();
-    const issueCount = issueList.length;
-    logInfo("Debug: Retrieved issue list", { issueCount });
-
-    // フォームのタイトルと見積もり課題セクションをセットアップ
-    setupFormSections(formUrl, titlePrefix, issueList);
-    logInfo("Debug: Setup form sections completed", {
-      title: titlePrefix,
-      targetCount: issueCount,
-    });
-
-    logInfo("Debug: Form setup completed", {
-      formUrl,
-      titlePrefix,
-      issueCount,
-    });
-
-    return {
-      formUrl,
-      titlePrefix,
-      issueCount,
-    };
-  });
-
 /** ===== 追加: 見積もり必要_デバッグ ローダ =================== */
 const estimateDebugTable = {
   tableName: "見積もり必要_デバッグ",
@@ -3019,6 +2846,78 @@ const getEstimateDebugMap = () => {
   return map;
 };
 
+/** ===== エントリポイント（実行対象の公開） ============= */
+
+/**
+ * スプレッドシートが開かれたときに実行される関数
+ * カスタムメニューを追加する
+ */
+const onOpen = () => {
+  const ui = SpreadsheetApp.getUi();
+  ui.createMenu("拡張コマンド")
+    .addItem("新規 async 見積もり発行", "runCreateEstimate")
+    .addToUi();
+};
+
+/**
+ * テンプレートから見積もりファイルセットを作成するエントリポイント
+ * 締切日を使用してタイトルプレフィックスを自動生成
+ * 使用例: runCreateEstimate()
+ */
+const runCreateEstimate = () =>
+  safeMain("runCreateEstimate", () => {
+    const deadline = getEstimateDeadline();
+    const deadlineDate = deadline.dueDate;
+    createEstimateFromTemplates(deadlineDate);
+  });
+
+/**
+ * デバッグ用: Google Formのテンプレートコピーと基本セットアップのみ実行
+ * 使用例: runDebugFormSetup()
+ */
+const runDebugFormSetup = () =>
+  safeMain("runDebugFormSetup", () => {
+    const deadline = getEstimateDeadline();
+    const deadlineDate = deadline.dueDate;
+    const titlePrefix = `${deadlineDate} async ポーカー`;
+
+    logInfo("Debug: Creating form from template", {
+      deadlineDate,
+      titlePrefix,
+    });
+
+    // テンプレートリンクを取得
+    const templates = getEstimateTemplateLinks();
+
+    // Google Formをコピー
+    const formUrl = copyFormFromUrl(templates.googleForm, titlePrefix);
+    logInfo("Debug: Form copied successfully", { formUrl });
+
+    // 見積もり課題の数を取得
+    const issueList = getEstimateIssueList();
+    const issueCount = issueList.length;
+    logInfo("Debug: Retrieved issue list", { issueCount });
+
+    // フォームのタイトルと見積もり課題セクションをセットアップ
+    setupFormSections(formUrl, titlePrefix, issueList);
+    logInfo("Debug: Setup form sections completed", {
+      title: titlePrefix,
+      targetCount: issueCount,
+    });
+
+    logInfo("Debug: Form setup completed", {
+      formUrl,
+      titlePrefix,
+      issueCount,
+    });
+
+    return {
+      formUrl,
+      titlePrefix,
+      issueCount,
+    };
+  });
+
 /**
  * デバッグ用: テーブル「見積もり必要_デバッグ」を読み込み console.log する。
  * 使用例: runDebugEstimateDebugTable()
@@ -3029,3 +2928,104 @@ const runDebugEstimateDebugTable = () =>
     console.log(map);
     return map;
   });
+
+/** 個別テスト実行 */
+/**
+ * @param {string} name
+ */
+const runTestByName = (name) =>
+  safeMain("runTestByName", () => runTestsCore({ names: [name] }));
+
+/** 指定名の複数テストを実行 */
+/**
+ * @param {string[]} names
+ */
+const runTestsByNames = (names) =>
+  safeMain("runTestsByNames", () => runTestsCore({ names }));
+
+/** 個別テストの例（必要に応じて増やす/編集する） */
+const testSampleTrue = () => runTestByName("sample:true");
+const testSampleSum = () => runTestByName("sample:sum");
+
+/** 複数まとめて実行する例 */
+const testSampleCore = () =>
+  runTestsByNames(["sample:true", "sample:sum"]);
+
+/** 見積もり必要_テンプレート: 固定キーのテスト */
+const testTemplateRequiredKeys = () =>
+  runTestByName("template:required_keys");
+const testTemplateGoogleFormLink = () =>
+  runTestByName("template:google_form_link");
+const testTemplateMidSpreadsheetLink = () =>
+  runTestByName("template:mid_spreadsheet_link");
+const testTemplateResultSpreadsheetLink = () =>
+  runTestByName("template:result_spreadsheet_link");
+
+/** 見積もり必要_テンプレート: まとめて */
+const testTemplateCore = () =>
+  runTestsByNames([
+    "template:required_keys",
+    "template:google_form_link",
+    "template:mid_spreadsheet_link",
+    "template:result_spreadsheet_link",
+  ]);
+
+/** POグループメンバー: 列存在・非空 検証 */
+const testPoMembersColumns = () => runTestByName("po_members:columns");
+const testPoMembersNamesNonEmpty = () =>
+  runTestByName("po_members:nonempty:displayNames");
+const testPoMembersEmailsNonEmpty = () =>
+  runTestByName("po_members:nonempty:emails");
+
+/** まとめて */
+const testPoMembersCore = () =>
+  runTestsByNames([
+    "po_members:columns",
+    "po_members:nonempty:displayNames",
+    "po_members:nonempty:emails",
+  ]);
+
+/** 見積もり履歴: 行追加テスト */
+// 見積もり必要_締切: テスト実行ヘルパ
+const testEstimateDeadlineColumns = () =>
+  runTestByName("estimate_deadline:columns");
+const testEstimateDeadlineLength1 = () =>
+  runTestByName("estimate_deadline:length1");
+const testEstimateDeadlineCore = () =>
+  runTestsByNames(["estimate_deadline:columns", "estimate_deadline:length1"]);
+
+/** 見積もり履歴: 行追加テスト */
+const testEstimateHistoryAddRow = () =>
+  runTestByName("estimate_history:addRow");
+
+/** 見積もり必要_メンバー: テスト実行ヘルパ */
+const testEstimateRequiredMembersColumns = () =>
+  runTestByName("estimate_required_members:columns");
+
+/** 見積もり必要_課題リスト: テスト実行ヘルパ */
+const testEstimateIssueListColumns = () =>
+  runTestByName("estimate_issue_list:columns");
+
+/** コアテスト（書き込み等の副作用なし）*/
+const testCore = () =>
+  runTestsByNames([
+    "sample:true",
+    "sample:sum",
+    "template:required_keys",
+    "template:google_form_link",
+    "template:mid_spreadsheet_link",
+    "template:result_spreadsheet_link",
+    "po_members:columns",
+    "po_members:nonempty:displayNames",
+    "po_members:nonempty:emails",
+    "estimate_deadline:columns",
+    "estimate_deadline:length1",
+    "estimate_required_members:columns",
+    "estimate_issue_list:columns",
+  ]);
+
+/**
+ * 追加の個別バンドル例:
+ * const testCore = testByNames(["A","B","C"]);
+ */
+
