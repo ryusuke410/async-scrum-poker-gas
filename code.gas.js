@@ -3006,7 +3006,11 @@ const testEstimateRequiredMembersColumns = () =>
 const testEstimateIssueListColumns = () =>
   runTestByName("estimate_issue_list:columns");
 
-/** コアテスト（書き込み等の副作用なし）*/
+/**
+ * コアテスト（書き込み等の副作用なし）
+ * 追加の個別バンドル例:
+ * const testCore = runTestsByNames(["A", "B", "C"]);
+ */
 const testCore = () =>
   runTestsByNames([
     "sample:true",
@@ -3023,9 +3027,4 @@ const testCore = () =>
     "estimate_required_members:columns",
     "estimate_issue_list:columns",
   ]);
-
-/**
- * 追加の個別バンドル例:
- * const testCore = testByNames(["A","B","C"]);
- */
 
