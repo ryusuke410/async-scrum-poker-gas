@@ -749,7 +749,7 @@ const createEstimateFromTemplates = (deadlineDate) => {
   });
 
   // Google Formのタイトルとセクションをセットアップ
-  const issueList = getEstimateIssueList();
+  const issueList = getEstimateIssueList().filter(({ title, url }) => title || url);
   setupFormSections(formUrl, titlePrefix, issueList);
 
   logInfo("Form sections setup completed", {
@@ -1676,7 +1676,7 @@ const updateResultSummaryTable = (spreadsheetUrl) => {
   });
 
   // 見積もり課題リストを取得
-  const issueList = getEstimateIssueList();
+  const issueList = getEstimateIssueList().filter(({ title, url }) => title || url);
   logInfo("Retrieved estimate issue list", {
     count: issueList.length,
   });
@@ -3014,7 +3014,7 @@ const runDebugFormSetup = () =>
     logInfo("Debug: Form copied successfully", { formUrl });
 
     // 見積もり課題の数を取得
-    const issueList = getEstimateIssueList();
+    const issueList = getEstimateIssueList().filter(({ title, url }) => title || url);
     const issueCount = issueList.length;
     logInfo("Debug: Retrieved issue list", { issueCount });
 
