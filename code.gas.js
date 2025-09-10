@@ -2999,22 +2999,26 @@ const runDebugEstimateDebugTable = () =>
 /**
  * 指定された Google Form の全 Item をログ出力する。
  * @param {string} formUrl - Google Form の URL
- * @returns {Array<{index:number,type:string,title:string,choices?:string[]}>}
+ * @returns {Array<{index:number,type:string,title:string,helpText?:string,choices?:string[]}>}
  */
 const debugListFormItems = (formUrl) => {
   const form = getFormFromUrl(formUrl);
   const items = form.getItems();
-  /** @type {Array<{index:number,type:string,title:string,choices?:string[]}>} */
+  /** @type {Array<{index:number,type:string,title:string,helpText?:string,choices?:string[]}>} */
   const out = [];
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const type = item.getType();
-    /** @type {{index:number,type:string,title:string,choices?:string[]}} */
+    /** @type {{index:number,type:string,title:string,helpText?:string,choices?:string[]}} */
     const info = {
       index: i,
       type: String(type),
       title: item.getTitle(),
     };
+    const helpText = item.getHelpText();
+    if (helpText) {
+      info.helpText = helpText;
+    }
     if (type === FormApp.ItemType.MULTIPLE_CHOICE) {
       info.choices = item
         .asMultipleChoiceItem()
