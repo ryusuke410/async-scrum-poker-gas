@@ -2997,12 +2997,15 @@ const runDebugEstimateDebugTable = () =>
   });
 
 /**
- * 指定された Google Form の全 Item をログ出力する。
+ * 指定された Google Form のタイトル、説明、および全 Item をログ出力する。
  * @param {string} formUrl - Google Form の URL
- * @returns {Array<{index:number,type:string,title:string,helpText?:string,choices?:string[]}>}
+ * @returns {{title: string, description?: string, items: Array<{index:number,type:string,title:string,helpText?:string,choices?:string[]}>}}
  */
-const debugListFormItems = (formUrl) => {
+const debugLogForm = (formUrl) => {
   const form = getFormFromUrl(formUrl);
+  const title = form.getTitle();
+  const description = form.getDescription();
+  logInfo("Form info", { title, description });
   const items = form.getItems();
   /** @type {Array<{index:number,type:string,title:string,helpText?:string,choices?:string[]}>} */
   const out = [];
@@ -3044,15 +3047,15 @@ const debugListFormItems = (formUrl) => {
     out.push(info);
     logInfo("Form item", info);
   }
-  return out;
+  return { title, description, items: out };
 };
 
 /**
- * デバッグ用: 見積もり必要_デバッグテーブルの google-form-url の Form Item を一覧ログ出力。
- * 使用例: runDebugFormItems()
+ * デバッグ用: 見積もり必要_デバッグテーブルの google-form-url の Form をログ出力。
+ * 使用例: runDebugForm()
  */
-const runDebugFormItems = () =>
-  safeMain("runDebugFormItems", () => {
+const runDebugForm = () =>
+  safeMain("runDebugForm", () => {
     const map = getEstimateDebugMap();
     const formUrl = map["google-form-url"];
     if (!formUrl) {
@@ -3060,6 +3063,6 @@ const runDebugFormItems = () =>
         'key "google-form-url" not found in 見積もり必要_デバッグ'
       );
     }
-    logInfo("Logging form items", { formUrl });
-    return debugListFormItems(formUrl);
+    logInfo("Logging form", { formUrl });
+    return debugLogForm(formUrl);
   });
