@@ -758,13 +758,13 @@ const createEstimateFromTemplates = (deadlineDate) => {
     issueCount: issueList.length,
   });
 
-  // Google Formの回答を可能にする
+  // Google Form を公開する
   const form = getFormFromUrl(formUrl);
-  form.setAcceptingResponses(true);
+  form.setPublished(true);
 
   const formResponseUrl = form.getPublishedUrl();
 
-  logInfo("Form accepting responses enabled", {
+  logInfo("Form published successfully", {
     formUrl,
     formResponseUrl,
   });
@@ -2221,7 +2221,6 @@ const addEstimateHistoryTopRow = (row) => {
   const meta = getTableMetaByName(estimateHistoryTable.tableName);
   const {
     sheetId,
-    sheetTitle,
     startCol0,
     endCol0,
     dataTop0,
@@ -2248,8 +2247,10 @@ const addEstimateHistoryTopRow = (row) => {
   valuesRow[idxRequestSlack] = richTextToString(row.requestSlackMessage);
   valuesRow[idxCompletionSlack] = richTextToString(row.completionSlackMessage);
 
+  // batchUpdate の内容
   // 1) データ先頭に 1 行分のスペースを挿入（テーブル幅に限定）
   // 2) 直後にその行に値を書き込む
+  // 3) リンクセルを設定する
   const insertRange = {
     sheetId,
     startRowIndex: dataTop0,
@@ -2258,119 +2259,118 @@ const addEstimateHistoryTopRow = (row) => {
     endColumnIndex: endCol0,
   };
 
-  if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
-    throw new Error("Sheets.Spreadsheets is not available");
-  }
-  Sheets.Spreadsheets.batchUpdate(
+  // バッチリクエストの準備
+  const batchRequests = [
+    // 行の挿入
+    { insertRange: { range: insertRange, shiftDimension: "ROWS" } },
+
+    // 基本値の書き込み
     {
-      requests: [
-        { insertRange: { range: insertRange, shiftDimension: "ROWS" } },
-      ],
+      updateCells: {
+        range: {
+          sheetId,
+          startRowIndex: dataTop0,
+          endRowIndex: dataTop0 + 1,
+          startColumnIndex: startCol0,
+          endColumnIndex: endCol0,
+        },
+        rows: [{
+          values: valuesRow.map(value => ({ userEnteredValue: { stringValue: value } }))
+        }],
+        fields: "userEnteredValue",
+      },
     },
-    SpreadsheetApp.getActiveSpreadsheet().getId()
-  );
 
-  // 値の書き込み（表示文字列のみ）
-  const rowA1 = gridRangeToA1(
+    // リンクセルの設定
     {
-      sheetId,
-      startRowIndex: dataTop0,
-      endRowIndex: dataTop0 + 1,
-      startColumnIndex: startCol0,
-      endColumnIndex: endCol0,
+      updateCells: {
+        range: {
+          sheetId,
+          startRowIndex: dataTop0,
+          endRowIndex: dataTop0 + 1,
+          startColumnIndex: startCol0 + idxMid,
+          endColumnIndex: startCol0 + idxMid + 1,
+        },
+        rows: [{ values: [buildLinkCell(row.midText, row.midUrl)] }],
+        fields: "userEnteredValue,textFormatRuns",
+      },
     },
-    sheetTitle
-  );
-  if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
-    throw new Error("Sheets.Spreadsheets is not available");
-  }
-  Sheets.Spreadsheets.Values.update(
-    { values: [valuesRow] },
-    SpreadsheetApp.getActiveSpreadsheet().getId(),
-    rowA1,
-    { valueInputOption: "USER_ENTERED" }
-  );
-
-  // 3) セル自体にリンクを付与（HYPERLINK 式は使わない）
-  const linkReq = {
-    requests: [
-      {
-        updateCells: {
-          range: {
-            sheetId,
-            startRowIndex: dataTop0,
-            endRowIndex: dataTop0 + 1,
-            startColumnIndex: startCol0 + idxMid,
-            endColumnIndex: startCol0 + idxMid + 1,
-          },
-          rows: [{ values: [buildLinkCell(row.midText, row.midUrl)] }],
-          fields: "userEnteredValue,textFormatRuns",
+    {
+      updateCells: {
+        range: {
+          sheetId,
+          startRowIndex: dataTop0,
+          endRowIndex: dataTop0 + 1,
+          startColumnIndex: startCol0 + idxForm,
+          endColumnIndex: startCol0 + idxForm + 1,
         },
+        rows: [{ values: [buildLinkCell(row.formText, row.formUrl)] }],
+        fields: "userEnteredValue,textFormatRuns",
       },
-      {
-        updateCells: {
-          range: {
-            sheetId,
-            startRowIndex: dataTop0,
-            endRowIndex: dataTop0 + 1,
-            startColumnIndex: startCol0 + idxForm,
-            endColumnIndex: startCol0 + idxForm + 1,
-          },
-          rows: [{ values: [buildLinkCell(row.formText, row.formUrl)] }],
-          fields: "userEnteredValue,textFormatRuns",
+    },
+    {
+      updateCells: {
+        range: {
+          sheetId,
+          startRowIndex: dataTop0,
+          endRowIndex: dataTop0 + 1,
+          startColumnIndex: startCol0 + idxResult,
+          endColumnIndex: startCol0 + idxResult + 1,
         },
+        rows: [{ values: [buildLinkCell(row.resultText, row.resultUrl)] }],
+        fields: "userEnteredValue,textFormatRuns",
       },
-      {
-        updateCells: {
-          range: {
-            sheetId,
-            startRowIndex: dataTop0,
-            endRowIndex: dataTop0 + 1,
-            startColumnIndex: startCol0 + idxResult,
-            endColumnIndex: startCol0 + idxResult + 1,
-          },
-          rows: [{ values: [buildLinkCell(row.resultText, row.resultUrl)] }],
-          fields: "userEnteredValue,textFormatRuns",
+    },
+    {
+      updateCells: {
+        range: {
+          sheetId,
+          startRowIndex: dataTop0,
+          endRowIndex: dataTop0 + 1,
+          startColumnIndex: startCol0 + idxRequestSlack,
+          endColumnIndex: startCol0 + idxRequestSlack + 1,
         },
+        rows: [{ values: [richTextToCell(row.requestSlackMessage)] }],
+        fields: "userEnteredValue,textFormatRuns",
       },
-      {
-        updateCells: {
-          range: {
-            sheetId,
-            startRowIndex: dataTop0,
-            endRowIndex: dataTop0 + 1,
-            startColumnIndex: startCol0 + idxRequestSlack,
-            endColumnIndex: startCol0 + idxRequestSlack + 1,
-          },
-          rows: [{ values: [richTextToCell(row.requestSlackMessage)] }],
-          fields: "userEnteredValue,textFormatRuns",
+    },
+    {
+      updateCells: {
+        range: {
+          sheetId,
+          startRowIndex: dataTop0,
+          endRowIndex: dataTop0 + 1,
+          startColumnIndex: startCol0 + idxCompletionSlack,
+          endColumnIndex: startCol0 + idxCompletionSlack + 1,
         },
+        rows: [{ values: [richTextToCell(row.completionSlackMessage)] }],
+        fields: "userEnteredValue,textFormatRuns",
       },
-      {
-        updateCells: {
-          range: {
-            sheetId,
-            startRowIndex: dataTop0,
-            endRowIndex: dataTop0 + 1,
-            startColumnIndex: startCol0 + idxCompletionSlack,
-            endColumnIndex: startCol0 + idxCompletionSlack + 1,
-          },
-          rows: [{ values: [richTextToCell(row.completionSlackMessage)] }],
-          fields: "userEnteredValue,textFormatRuns",
-        },
-      },
-    ],
-  };
+    },
+  ];
 
   if (!isSpreadsheetsCollection(Sheets.Spreadsheets)) {
     throw new Error("Sheets.Spreadsheets is not available");
   }
-  Sheets.Spreadsheets.batchUpdate(
-    linkReq,
-    SpreadsheetApp.getActiveSpreadsheet().getId()
-  );
 
-  logInfo("addEstimateHistoryTopRow done (links)", { rowA1 });
+  try {
+    console.log("Executing unified batch update with requests:", batchRequests.length);
+
+    Sheets.Spreadsheets.batchUpdate(
+      { requests: batchRequests },
+      SpreadsheetApp.getActiveSpreadsheet().getId()
+    );
+
+    console.log("Unified batch update completed successfully");
+  } catch (error) {
+    console.error("Error in unified Sheets.Spreadsheets.batchUpdate:", error);
+    console.error("Spreadsheet ID:", SpreadsheetApp.getActiveSpreadsheet().getId());
+    console.error("Batch requests count:", batchRequests.length);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to update spreadsheet with unified batch: ${errorMessage}`);
+  }
+
+  logInfo("addEstimateHistoryTopRow done (unified batch)", { dataTop0, colCount });
 };
 
 /** ===== 追加: 見積もり必要_課題リスト ローダ =================== */
